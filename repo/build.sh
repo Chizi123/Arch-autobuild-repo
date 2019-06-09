@@ -36,11 +36,18 @@ function newest_matching_file
 
 for d in 'emacs-git'
 do
+	if [ "$d" = "x86_64" ]; then
+		continue
+	fi
 	cd $d
 	git pull
 	makepkg
 	latest=$(newest_matching_file '*.pkg.tar.xz')
 	cd ..
-	repo-add ./repo.db.tar.xz $d/$latest
+	rsync $d/$latest x86_64/$latest
+	repo-add ./repo.db.tar.xz x86_64/$latest
 done
 
+git add x86_64
+git commit -m "'$(date +%d/%m/%y)'"
+git push
