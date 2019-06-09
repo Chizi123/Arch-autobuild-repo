@@ -34,20 +34,22 @@ function newest_matching_file
     return 0
 }
 
-for d in 'emacs-git'
+for d in `find . -maxdepth 1 -not -path '*/\.*' -type d`
 do
-	if [ "$d" = "x86_64" ]; then
+	if [ "$d" = "./x86_64" ] || [ "$d" = "." ]; then
 		continue
 	fi
 	cd $d
 	git pull
-	makepkg
+	makepkg -s --noconfirm
 	latest=$(newest_matching_file '*.pkg.tar.xz')
 	cd ..
 	rsync $d/$latest x86_64/$latest
-	repo-add ./repo.db.tar.xz x86_64/$latest
+	repo-add ./Chizi123.db.tar.xz x86_64/$latest
 done
 
-git add x86_64
-git commit -m "'$(date +%d/%m/%y)'"
-git push
+cp Chizi123.db.tar.xz x86_64/Chizi123.db
+cp Chizi123.files.tar.xz x86_64/Chizi123.files
+# git add x86_64
+# git commit -m "'$(date +%d/%m/%y-%H:%M)'"
+# git push
