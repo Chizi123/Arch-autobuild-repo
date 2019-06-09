@@ -5,7 +5,7 @@ MAINTAINER joeleg
 RUN /usr/bin/chmod -v 1777 /tmp
 
 #Update and install software
-RUN /usr/bin/pacman -Syu --noconfirm base-devel git sudo go && \
+RUN /usr/bin/pacman -Syu --noconfirm base-devel git sudo go rsync && \
 	/usr/sbin/pacman -Scc --noconfirm && \
 	/usr/sbin/echo '%sudo ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
