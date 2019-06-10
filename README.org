@@ -6,15 +6,21 @@ It uses a chroot environment to build the packages, so that a build environment 
 * Set-up
 Create a chroot environment named "chroot" in the current directory.
 Copy the ~build.sh~ script to ~/build/repo~ within the chroot.
+While there, run ~pacman -S base-devel~
+Be sure to sign in to git in the chroot and set ~git config --global credential.helper store~, with an appropriate remote repository.
+
+You may also want to set ~MAKEFLAGS="-j$(nproc)"~ within the chroot to enable parallel compilation.
+
 Script coming soon.
 * Usage
 All scripts must be run as root.
 To enter the chroot, use the ~enter_chroot.sh~ script.
 To add a package from the AUR, use the ~add_package.sh~ script, with the git URL as the argument.
 To build the packages use the ~build_packages.sh~ script, which will enter the chroot, and build the packages from the PKGBUILDs stored in ~/build/repo~.
+
 The packages are built and put into the directory ~/build/repo/x86_64~, then pushed with git.
 Only the latest packages are stored in ~/build/repo/x86_64~ to avoid multiple older versions building up.
-Since git is used, be sure to sign in to git in the chroot and set ~git config --global credential.helper store~, with an appropriate remote repository.
+
 To enable automatic building, create a cronjob for root, something of the sort of ~* 12 * * * /path/to/dir/build_packages.sh~ to build ever day at noon.
 * To Dos
 - Add a script to create the chroot folder.
