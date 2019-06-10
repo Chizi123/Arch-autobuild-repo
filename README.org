@@ -1,0 +1,17 @@
+#+TITLE: Auto-build package repository for Arch Linux
+
+* What is this?
+This is a set of files to auto-build a personal repository for Arch.
+It uses a chroot environment to build the packages, so that a build environment can be made on a server running a non-arch operating system.
+* Set-up
+Create a chroot environment named "chroot" in the current directory.
+Copy the ~build.sh~ script to ~/build/repo~ within the chroot.
+Script coming soon.
+* Usage
+All scripts must be run as root.
+To enter the chroot, use the ~enter_chroot.sh~ script.
+To add a package from the AUR, use the ~add_package.sh~ script, with the git URL as the argument.
+To build the packages use the ~build_packages.sh~ script, which will enter the chroot, and build the packages from the PKGBUILDs stored in ~/build/repo~.
+The packages are built and put into the directory ~/build/repo/x86_64~, then pushed with git.
+Since git is used, be sure to sign in to git in the chroot and set ~git config --global credential.helper store~, with an appropriate remote repository.
+To enable automatic building, create a cronjob for root, something of the sort of ~* 12 * * * /path/to/dir/build_packages.sh~.
