@@ -11,6 +11,8 @@ Be sure to sign in to git in the chroot and set ~git config --global credential.
 
 You may also want to set ~MAKEFLAGS="-j$(nproc)"~ within the chroot to enable parallel compilation.
 
+It is also needed to mount execute ~mount --bind chroot chroot~, to set the root directory within the chroot.
+
 Script coming soon.
 * Usage
 All scripts must be run as root.
