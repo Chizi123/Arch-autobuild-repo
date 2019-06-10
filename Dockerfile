@@ -13,3 +13,7 @@ RUN /usr/bin/pacman -Syu --noconfirm base-devel git sudo go rsync && \
 RUN /usr/sbin/groupadd --system sudo && \
     /usr/sbin/useradd -m --groups sudo user
 USER user
+
+RUN cd repo && \
+	for i in `find . -maxdepth 1 -not -path '*/\.*' -type d`
+do

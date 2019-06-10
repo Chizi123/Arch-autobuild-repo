@@ -34,6 +34,9 @@ function newest_matching_file
     return 0
 }
 
+cd $(dirname "$(realpath $0)")
+git rm -r x86_64/*.pkg.tar.xz
+
 for d in `find . -maxdepth 1 -not -path '*/\.*' -type d`
 do
 	if [ "$d" = "./x86_64" ] || [ "$d" = "." ]; then
@@ -50,6 +53,6 @@ done
 
 cp Chizi123.db.tar.xz x86_64/Chizi123.db
 cp Chizi123.files.tar.xz x86_64/Chizi123.files
-# git add x86_64
-# git commit -m "'$(date +%d/%m/%y-%H:%M)'"
-# git push
+git add x86_64
+git commit -m "'$(date +%d/%m/%y-%H:%M)'"
+git push
