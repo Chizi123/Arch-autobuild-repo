@@ -34,6 +34,7 @@ function newest_matching_file
     return 0
 }
 
+sudo pacman -Syu
 cd $(dirname "$(realpath $0)")
 git rm -r x86_64/*.pkg.tar.xz
 
