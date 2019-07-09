@@ -34,26 +34,33 @@ function newest_matching_file
     return 0
 }
 
-sudo pacman -Syu
+#update system
+sudo pacman -Syu --noconfirm
+
+#go to build directory
 cd $(dirname "$(realpath $0)")
-git rm -r x86_64/*.pkg.tar.xz
+
+#Remove old packages
+#git rm -r x86_64/*.pkg.tar.xz
 
 for d in `find . -maxdepth 1 -not -path '*/\.*' -type d`
 do
+	#Only do package directories
 	if [ "$d" = "./x86_64" ] || [ "$d" = "." ]; then
 		continue
 	fi
 	cd $d
+	#update package to latest from AUR
 	git pull
 	makepkg -s --noconfirm
 	latest=$(newest_matching_file '*.pkg.tar.xz')
 	cd ..
-	rsync $d/$latest x86_64/$latest
+	ln $d/$latest x86_64/$latest
 	repo-add ./Chizi123.db.tar.xz x86_64/$latest
 done
 
-cp Chizi123.db.tar.xz x86_64/Chizi123.db
-cp Chizi123.files.tar.xz x86_64/Chizi123.files
+ln Chizi123.db.tar.xz x86_64/Chizi123.db
+ln Chizi123.files.tar.xz x86_64/Chizi123.files
 git add x86_64
 git commit -m "'$(date +%d/%m/%y-%H:%M)'"
 git push
