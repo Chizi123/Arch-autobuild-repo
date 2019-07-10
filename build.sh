@@ -41,12 +41,33 @@ sudo pacman -Syu --noconfirm
 cd $(dirname "$(realpath $0)")
 
 #Remove old packages
-#git rm -r x86_64/*.pkg.tar.xz
+git rm -r x86_64/*
+mkdir x86_64
 
+#dependencies
+cd dependencies
 for d in `find . -maxdepth 1 -not -path '*/\.*' -type d`
 do
 	#Only do package directories
 	if [ "$d" = "./x86_64" ] || [ "$d" = "." ]; then
+		continue
+	fi
+	cd $d
+	#update package to latest from AUR
+	git pull
+	makepkg -si --noconfirm
+	latest=$(newest_matching_file '*.pkg.tar.xz')
+	cd ..
+	ln $d/$latest ../x86_64/$latest
+	repo-add ../Chizi123.db.tar.xz ../x86_64/$latest
+done
+cd ..
+
+#main packages
+for d in `find . -maxdepth 1 -not -path '*/\.*' -type d`
+do
+	#Only do package directories
+	if [ "$d" = "./x86_64" ] || [ "$d" = "." ] || [ "$d" = "dependencies" ]; then
 		continue
 	fi
 	cd $d
