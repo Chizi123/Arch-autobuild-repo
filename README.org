@@ -3,17 +3,15 @@
 * What is this?
 This is a set of files to auto-build a personal repository for Arch.
 It uses a chroot environment to build the packages, so that a build environment can be made on a server running a non-arch operating system.
+
 * Set-up
-Create a chroot environment named "chroot" in the current directory.
-Copy the ~build.sh~ script to ~/build/repo~ within the chroot.
-While there, run ~pacman -S base-devel~
-Be sure to sign in to git in the chroot and set ~git config --global credential.helper store~, with an appropriate remote repository.
+Edit ~create_chroot.sh~ variables at the top to your details.
+Run ~sudo create_chroot.sh~, and create the git repository in ~/build/repo~ when prompted, with a remote repository.
 
 You may also want to set ~MAKEFLAGS="-j$(nproc)"~ within the chroot to enable parallel compilation.
 For xz compression, add the ~--threads=0~ option to COMPRESSXZ such that it reads ~COMPRESSXZ=(xz -c -z - --threads=0)~.
 ccache may be useful to decrease the times of git packages, due to the little changes.
 
-Script coming soon.
 * Usage
 All scripts must be run as root.
 To enter the chroot, use the ~enter_chroot.sh~ script.
@@ -24,6 +22,7 @@ The packages are built and put into the directory ~/build/repo/x86_64~, then pus
 Only the latest packages are stored in ~/build/repo/x86_64~ to avoid multiple older versions building up.
 
 To enable automatic building, create a cronjob for root, something of the sort of ~0 12 * * * /path/to/dir/build_packages.sh~ to build ever day at noon.
+
 * To Dos
-- Add a script to create the chroot folder.
 - Error catching for builds which fail.
+- Create a universal variables file
