@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#Number of old packages to store, should be at least 1
+NUM_BACK=5
+
 function newest_matching_file
 {
     # Use ${1-} instead of $1 in case 'nounset' is set
@@ -34,6 +37,40 @@ function newest_matching_file
     return 0
 }
 
+function oldest_matching_file
+{
+    # Use ${1-} instead of $1 in case 'nounset' is set
+    local -r glob_pattern=${1-}
+
+    if (( $# != 1 )) ; then
+        echo 'usage: oldest_matching_file GLOB_PATTERN' >&2
+        return 1
+    fi
+
+    # To avoid printing garbage if no files match the pattern, set
+    # 'nullglob' if necessary
+    local -i need_to_unset_nullglob=0
+    if [[ ":$BASHOPTS:" != *:nullglob:* ]] ; then
+        shopt -s nullglob
+        need_to_unset_nullglob=1
+    fi
+
+    oldest_file=
+    for file in $glob_pattern ; do
+        [[ -z $oldest_file || $file -ot $oldest_file ]] \
+            && oldest_file=$file
+    done
+
+    # To avoid unexpected behaviour elsewhere, unset nullglob if it was
+    # set by this function
+    (( need_to_unset_nullglob )) && shopt -u nullglob
+
+    # Use printf instead of echo in case the file name begins with '-'
+    [[ -n $oldest_file ]] && printf '%s\n' "$oldest_file"
+
+    return 0
+}
+
 #update system
 sudo pacman -Syu --noconfirm
 
@@ -42,6 +79,7 @@ cd $(dirname "$(realpath $0)")
 
 #Remove old packages
 git rm -r x86_64/*
+rm -r x86_64
 mkdir x86_64
 
 #dependencies
@@ -57,6 +95,11 @@ do
 	git pull
 	makepkg -si --noconfirm
 	latest=$(newest_matching_file '*.pkg.tar.xz')
+	while [ $NUM_BACK \< $(find . -name "*.pkg.tar.xz" | wc -l) ]
+	do
+		oldest=$(oldest_matching_file '*.pkg.tar.xz')
+		rm $oldest
+	done
 	cd ..
 	ln $d/$latest ../x86_64/$latest
 	repo-add ../Chizi123.db.tar.xz ../x86_64/$latest
@@ -67,7 +110,7 @@ cd ..
 for d in `find . -maxdepth 1 -not -path '*/\.*' -type d`
 do
 	#Only do package directories
-	if [ "$d" = "./x86_64" ] || [ "$d" = "." ] || [ "$d" = "dependencies" ]; then
+	if [ "$d" = "./x86_64" ] || [ "$d" = "." ] || [ "$d" = "./dependencies" ]; then
 		continue
 	fi
 	cd $d
@@ -75,6 +118,11 @@ do
 	git pull
 	makepkg -s --noconfirm
 	latest=$(newest_matching_file '*.pkg.tar.xz')
+	while [ $NUM_BACK \< $(find . -name "*.pkg.tar.xz" | wc -l) ]
+	do
+		oldest=$(oldest_matching_file '*.pkg.tar.xz')
+		rm $oldest
+	done
 	cd ..
 	ln $d/$latest x86_64/$latest
 	repo-add ./Chizi123.db.tar.xz x86_64/$latest

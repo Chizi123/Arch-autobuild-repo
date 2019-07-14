@@ -10,6 +10,8 @@ While there, run ~pacman -S base-devel~
 Be sure to sign in to git in the chroot and set ~git config --global credential.helper store~, with an appropriate remote repository.
 
 You may also want to set ~MAKEFLAGS="-j$(nproc)"~ within the chroot to enable parallel compilation.
+For xz compression, add the ~--threads=0~ option to COMPRESSXZ such that it reads ~COMPRESSXZ=(xz -c -z - --threads=0)~.
+ccache may be useful to decrease the times of git packages, due to the little changes.
 
 Script coming soon.
 * Usage
