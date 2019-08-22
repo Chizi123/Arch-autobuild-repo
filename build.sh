@@ -94,15 +94,20 @@ do
 	#update package to latest from AUR
 	git pull
 	makepkg -si --noconfirm
-	latest=$(newest_matching_file '*.pkg.tar.xz')
-	while [ $NUM_BACK \< $(find . -name "*.pkg.tar.xz" | wc -l) ]
-	do
-		oldest=$(oldest_matching_file '*.pkg.tar.xz')
-		rm $oldest
-	done
-	cd ..
-	ln $d/$latest ../x86_64/$latest
-	repo-add ../Chizi123.db.tar.xz ../x86_64/$latest
+	if [ $? = 0 ]; then
+		latest=$(newest_matching_file '*.pkg.tar.xz')
+		while [ $NUM_BACK \< $(find . -name "*.pkg.tar.xz" | wc -l) ]
+		do
+			oldest=$(oldest_matching_file '*.pkg.tar.xz')
+			rm $oldest
+		done
+		cd ..
+		rm ../x86_64/"$d"*".pkg.tar.xz"
+		ln $d/$latest ../x86_64/$latest
+	else
+		cd ..
+	fi
+	#	repo-add ../Chizi123.db.tar.xz ../x86_64/$latest
 done
 cd ..
 
@@ -117,17 +122,23 @@ do
 	#update package to latest from AUR
 	git pull
 	makepkg -s --noconfirm
-	latest=$(newest_matching_file '*.pkg.tar.xz')
-	while [ $NUM_BACK \< $(find . -name "*.pkg.tar.xz" | wc -l) ]
-	do
-		oldest=$(oldest_matching_file '*.pkg.tar.xz')
-		rm $oldest
-	done
-	cd ..
-	ln $d/$latest x86_64/$latest
-	repo-add ./Chizi123.db.tar.xz x86_64/$latest
+	if [ $? = 0 ]; then
+		latest=$(newest_matching_file '*.pkg.tar.xz')
+		while [ $NUM_BACK \< $(find . -name "*.pkg.tar.xz" | wc -l) ]
+		do
+			oldest=$(oldest_matching_file '*.pkg.tar.xz')
+			rm $oldest
+		done
+		cd ..
+		rm x86_64/"$d"*".pkg.tar.xz"
+		ln $d/$latest x86_64/$latest
+	else
+		cd ..
+	fi
+	#	repo-add ./Chizi123.db.tar.xz x86_64/$latest
 done
 
+repo-add Chizi123.db.tar.xz x86_64/*
 ln Chizi123.db.tar.xz x86_64/Chizi123.db
 ln Chizi123.files.tar.xz x86_64/Chizi123.files
 git add x86_64
