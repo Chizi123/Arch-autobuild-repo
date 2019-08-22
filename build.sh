@@ -78,9 +78,9 @@ sudo pacman -Syu --noconfirm
 cd $(dirname "$(realpath $0)")
 
 #Remove old packages
-git rm -r x86_64/*
-rm -r x86_64
-mkdir x86_64
+#git rm -r x86_64/*
+#rm -r x86_64
+#mkdir x86_64
 
 #dependencies
 cd dependencies
