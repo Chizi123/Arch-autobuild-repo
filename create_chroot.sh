@@ -26,10 +26,10 @@ cd $CHDIR
 sed -i 's/^#Server/Server/' etc/pacman.d/mirrorlist
 mkdir home/$USER
 echo $USER:x:1000:1000:$USER:/home/$USER:/bin/bash >> etc/passwd
-echo $USER::14871:::::: >> /etc/shadow
-mkdir build
-mkdir build/repo
-echo $LOCALE >> /etc/locale.gen
+echo $USER::14871:::::: >> etc/shadow
+mkdir -p build/repo
+ln ../build.sh build/repo/build.sh
+echo $LOCALE >> etc/locale.gen
 mount --bind $CHDIR $CHDIR
 bin/arch-chroot . bash -c "locale-gen;
 						   pacman-key --init;
@@ -38,8 +38,7 @@ bin/arch-chroot . bash -c "locale-gen;
 						   chown $USER:users /home/$USER;
 						   su $USER -c \"git config --global credential.helper store;
 						   	  		   	 git config --global user.name $GIT_USER;
-						   				 git config --global user.email $GIT_EMAIL\";
-						   ln build.sh chroot/build/repo/build.sh"
+						   				 git config --global user.email $GIT_EMAIL\";"
 echo "$USER ALL=(ALL) NOPASSWD:ALL" >> etc/sudoers
 echo "Please set up the remote git repo for hosting"
 echo "Navagate to /build/repo to init the repository"
