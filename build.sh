@@ -2,6 +2,10 @@
 
 #Number of old packages to store, should be at least 1
 NUM_BACK=5
+#remote details
+RUSER=joelgrun
+RLOC=35.225.177.191
+RPATH=/var/www/joelg.cf/html/x86_64/
 
 function newest_matching_file
 {
@@ -144,3 +148,4 @@ ln Chizi123.files.tar.xz x86_64/Chizi123.files
 git add x86_64
 git commit -m "'$(date +%d/%m/%y-%H:%M)'"
 git push
+rsync -ah --delete x86_64 $RUSER@$RLOC:$RPATH
