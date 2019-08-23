@@ -111,7 +111,7 @@ do
 	else
 		cd ..
 	fi
-	#	repo-add ../Chizi123.db.tar.xz ../x86_64/$latest
+	repo-add ../Chizi123.db.tar.xz ../x86_64/$latest
 done
 cd ..
 
@@ -139,10 +139,9 @@ do
 	else
 		cd ..
 	fi
-	#	repo-add ./Chizi123.db.tar.xz x86_64/$latest
+	repo-add ./Chizi123.db.tar.xz x86_64/$latest
 done
 
-repo-add Chizi123.db.tar.xz x86_64/*
 #ln Chizi123.db.tar.xz x86_64/Chizi123.db
 #ln Chizi123.files.tar.xz x86_64/Chizi123.files
 #git add x86_64
