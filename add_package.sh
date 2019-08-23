@@ -3,7 +3,7 @@
 CHDIR=$(dirname "$(realpath $0)")/chroot 
 mount --bind $CHDIR $CHDIR
 $CHDIR/bin/arch-chroot $CHDIR su joel -c "cd /build/repo;
-					   		  	 	  	  git clone http://aur.archlinux.org/$1.git
+					   		  	 	  	  git clone https://aur.archlinux.org/$1.git
 										  cd $1;
 										  makepkg -s --noconfirm;
 										  ln $1-*.pkg.tar.xz ../x86_64/;
