@@ -5,7 +5,7 @@ NUM_BACK=5
 #remote details
 RUSER=joelgrun
 RLOC=35.225.177.191
-RPATH=/var/www/joelg.cf/html/x86_64/
+RPATH=/var/www/joelg.cf/html/
 
 function newest_matching_file
 {
@@ -96,7 +96,7 @@ do
 	fi
 	cd $d
 	#update package to latest from AUR
-	git pull
+	git pull -f
 	makepkg -si --noconfirm
 	if [ $? = 0 ]; then
 		latest=$(newest_matching_file '*.pkg.tar.xz')
@@ -124,7 +124,7 @@ do
 	fi
 	cd $d
 	#update package to latest from AUR
-	git pull
+	git pull -f
 	makepkg -s --noconfirm
 	if [ $? = 0 ]; then
 		latest=$(newest_matching_file '*.pkg.tar.xz')
