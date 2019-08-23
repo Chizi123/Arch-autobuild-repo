@@ -96,7 +96,7 @@ do
 	fi
 	cd $d
 	#update package to latest from AUR
-	git pull
+	git pull -f
 	makepkg -si --noconfirm
 	if [ $? = 0 ]; then
 		latest=$(newest_matching_file '*.pkg.tar.xz')
@@ -124,7 +124,7 @@ do
 	fi
 	cd $d
 	#update package to latest from AUR
-	git pull
+	git pull -f
 	makepkg -s --noconfirm
 	if [ $? = 0 ]; then
 		latest=$(newest_matching_file '*.pkg.tar.xz')
@@ -148,4 +148,8 @@ ln Chizi123.files.tar.xz x86_64/Chizi123.files
 git add x86_64
 git commit -m "'$(date +%d/%m/%y-%H:%M)'"
 git push
+<<<<<<< HEAD
 rsync -ah x86_64 $RUSER@$RLOC:$RPATH
+=======
+rsync -ah --delete x86_64 $RUSER@$RLOC:$RPATH
+>>>>>>> 019ddc4837c10dc233d49bd517b6f08ef1e53519
