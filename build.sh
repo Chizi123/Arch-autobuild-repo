@@ -143,9 +143,9 @@ do
 done
 
 repo-add Chizi123.db.tar.xz x86_64/*
-ln Chizi123.db.tar.xz x86_64/Chizi123.db
-ln Chizi123.files.tar.xz x86_64/Chizi123.files
-git add x86_64
-git commit -m "'$(date +%d/%m/%y-%H:%M)'"
-git push
-rsync -ah --delete x86_64 $RUSER@$RLOC:$RPATH
+#ln Chizi123.db.tar.xz x86_64/Chizi123.db
+#ln Chizi123.files.tar.xz x86_64/Chizi123.files
+#git add x86_64
+#git commit -m "'$(date +%d/%m/%y-%H:%M)'"
+#git push
+rsync -aL --delete x86_64 $RUSER@$RLOC:$RPATH
