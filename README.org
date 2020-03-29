@@ -1,28 +1,32 @@
 #+TITLE: Auto-build package repository for Arch Linux
 
 * What is this?
-This is a set of files to auto-build a personal repository for Arch.
-It uses a chroot environment to build the packages, so that a build environment can be made on a server running a non-arch operating system.
+This is a package autobuild solution for Arch Linux.
+It supports the automated building of packages from the AUR.
+
+Currently it supports package signing and building clean from source.
+It can help to set itself up and generate GPG keys if need be.
+
+The chroot files are here from an older version of this project and are here as I think they're interesting.
 
 * Set-up
-Edit ~create_chroot.sh~ variables at the top to your details.
-Run ~sudo create_chroot.sh~, and create the git repository in ~/build/repo~ when prompted, with a remote repository.
+Edit the variables at the top of ~main.sh~ to suit your repository details.
+Have a look at the init function near the bottom of the file to decide if you want to run it.
+If you decide to generate a GPG key, edit the name, comment and email so that it fits you.
 
 You may also want to set ~MAKEFLAGS="-j$(nproc)"~ within the chroot to enable parallel compilation.
 For xz compression, add the ~--threads=0~ option to COMPRESSXZ such that it reads ~COMPRESSXZ=(xz -c -z - --threads=0)~.
 ccache may be useful to decrease the times of git packages, due to the little changes.
 
 * Usage
-All scripts must be run as root.
-To enter the chroot, use the ~enter_chroot.sh~ script.
-To add a package from the AUR, use the ~add_package.sh~ script, with the git URL as the argument.
-To build the packages use the ~build_packages.sh~ script, which will enter the chroot, and build the packages from the PKGBUILDs stored in ~/build/repo~.
-
-The packages are built and put into the directory ~/build/repo/x86_64~, then pushed with git.
-Only the latest packages are stored in ~/build/repo/x86_64~ to avoid multiple older versions building up.
-
-To enable automatic building, create a cronjob for root, something of the sort of ~0 12 * * * /path/to/dir/build_packages.sh~ to build ever day at noon.
+To add a package ~main.sh add [package]~ should be run. Currently I only support adding one package at a time.
+To update all packages, use ~main.sh build-all~. A ~-f~ flag can be used to force a rebuild of all the packages.
+To allow automatic building, use a cronjob or write a systemd unit, there are many guides out there, although I may add examples if I feel like it.
 
 * To Dos
+- Multiple packages from a single PKGBUILD
+  Some PKGBUILDs can create many packages at once, currently I am unable to handle this.
 - Error catching for builds which fail.
+  Have emailing, but nothing more advanced. Would be nice to have some basic error handling in the script
 - Create a universal variables file
+  Not sure how useful this would be, but could be nice
