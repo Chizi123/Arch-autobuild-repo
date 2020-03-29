@@ -24,9 +24,9 @@ To update all packages, use ~main.sh build-all~. A ~-f~ flag can be used to forc
 To allow automatic building, use a cronjob or write a systemd unit, there are many guides out there, although I may add examples if I feel like it.
 
 * To Dos
-- Multiple packages from a single PKGBUILD
+- Multiple packages from a single PKGBUILD ::
   Some PKGBUILDs can create many packages at once, currently I am unable to handle this.
-- Error catching for builds which fail.
+- Error catching for builds which fail. ::
   Have emailing, but nothing more advanced. Would be nice to have some basic error handling in the script
-- Create a universal variables file
+- Create a universal variables file ::
   Not sure how useful this would be, but could be nice
