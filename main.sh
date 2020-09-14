@@ -1,4 +1,6 @@
 #!/bin/bash
+#A basic bash script to automate the building of arch packages
+# Usage: main.sh init|add|build_all [-f force]
 
 REPODIR=/repo/x86_64
 BUILDDIR=/repo/build
@@ -15,6 +17,7 @@ ERRORS=""
 
 #Helper for finding newest and oldest files
 #Sourced from stack overflow
+# Usage: newold_matching_file [n/o] [filename]
 function newold_matching_file
 {
     # Use ${1-} instead of $1 in case 'nounset' is set
@@ -48,35 +51,45 @@ function newold_matching_file
 }
 
 #Build latest version of a package
+# Usage: build_pkg [package name] [new?] [-f force]
 function build_pkg {
 	#check if PKGBUILD has updated, don't rebuild if hasn't changed
-	#rebuild if git is in filename (git tree may change without PKGBUILD)
-	#rebuild if forced
 	if [[ ! -z $(git pull | grep "Already up to date.") && -z $(echo $1 | grep git) && -z $2 ]]; then
 		return 2
 	fi
+
+	#remove old versions before build
+	rm "$1*.pkg.tar.xz"
+
+	#make and force rebuild if is git package
 	makepkg -s --noconfirm $([ $CLEAN == "Y" ] && echo "-c") $([ $SIGN == "Y" ] && echo "--sign --key $KEY") $([ "$2" == "-f" ] && echo -f)
 	if [ $? != 0 ]; then
 		#Register error
-		ERRORS=$(printf '%s %s' "$ERRORS" "$1")
+		ERRORS="$ERRORS $1"
 		return 1
 	fi
 
 	#copy package to repo directory
-	latest="$(newold_matching_file n '*.pkg.tar.xz')"
-	cp $latest $REPODIR/$latest
-	repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$latest
+	#latest="$(newold_matching_file n '*.pkg.tar.xz')"
+	for f in '$1*.pkg.tar.xz'
+	do
+		cp $f $REPODIR/$f
+		repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$f
+	done
 
 	#Remove old versions of packages
-	while [ $NUM_OLD \< $(find . -name '*.pkg.tar.xz' | wc -l) ]
-	do
-		old=$(newold_matching_file o '*.pkg.tar.xz')
-		rm $REPODIR/$old $old
-	done
+	#TODO: Want to be able to keep multiple versions of old packages, future work
+	#Currently old package versions stay in the repodir indefinately
+	# while [ $NUM_OLD \< $(find . -name '*.pkg.tar.xz' | wc -l) ]
+	# do
+	# 	old=$(newold_matching_file o '*.pkg.tar.xz')
+	# 	rm $REPODIR/$old $old
+	# done
 	return 0
 }
 
 #Update packages in BUILDDIR
+# Usage: build_all [-f force]
 function build_all {
 	#system update
 	if [ $UPDATE == "Y" ]; then
@@ -93,6 +106,8 @@ function build_all {
 }
 
 #Add a new package to be built
+#There is no name checking so be sure to put in the name correctly
+# Usage: add [package name]
 function add {
 	cd $BUILDDIR
 	git clone https://aur.archlinux.org/$1.git
@@ -102,6 +117,8 @@ function add {
 }
 
 #Check config and create build folders
+#Set variables before usage
+# Usage: init
 function init {
 	#check for configuration here
 	[ -z $REPODIR ] && echo "Enter REPODIR" && return 1
