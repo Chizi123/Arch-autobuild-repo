@@ -2,16 +2,7 @@
 #A basic bash script to automate the building of arch packages
 # Usage: main.sh init|add|build_all [-f force]
 
-REPODIR=/repo/x86_64
-BUILDDIR=/repo/build
-REPONAME=
-UPDATE=N
-CLEAN=N
-SIGN=N
-KEY=""
-NUM_OLD=5
-export PACKAGER="John Doe <jd@change.me>"
-EMAIL=""
+source vars.sh
 
 ERRORS=""
 
