@@ -50,7 +50,7 @@ function build_pkg {
 	fi
 
 	#remove old versions before build
-	rm "$1*.pkg.tar.xz"
+	rm $1*.pkg.tar.xz
 
 	#make and force rebuild if is git package
 	makepkg -s --noconfirm $([ $CLEAN == "Y" ] && echo "-c") $([ $SIGN == "Y" ] && echo "--sign --key $KEY") $([ "$2" == "-f" ] && echo -f)
@@ -62,11 +62,12 @@ function build_pkg {
 
 	#copy package to repo directory
 	#latest="$(newold_matching_file n '*.pkg.tar.xz')"
-	for f in '$1*.pkg.tar.xz'
-	do
-		cp $f $REPODIR/$f
-		repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$f
-	done
+	#or f in $(find g.tar.xz'
+	#o
+	rm $REPODIR/$1*.pkg.tar.xz
+	cp $1*.pkg.tar.xz $REPODIR/
+	repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$1*.pkg.tar.xz
+	#one
 
 	#Remove old versions of packages
 	#TODO: Want to be able to keep multiple versions of old packages, future work
@@ -87,7 +88,7 @@ function build_all {
 		sudo pacman -Syu --noconfirm
 	fi
 	#update every package currently stored
-	for d in $(find $BUILDDIR -maxdepth 1 -mindepth 1 -not -path '*/\.*' -type d)
+	for d in $(find $BUILDDIR -maxdepth 1 -mindepth 1 -type d)
 	do
 		cd $d
 		build_pkg $(echo $d | rev | cut -d'/' -f1 | rev) $1
@@ -105,6 +106,14 @@ function add {
 	cd $1
 	build_pkg $1 new
 	return 0
+}
+
+#Remove a package from the build list and repository
+# Usage remove [package name]
+function remove {
+	rm -rf $BUILDDIR/$1*
+	repo-remove $REPODIR/$REPONAME.db.tar.xz $1
+	rm $REPODIR/$1*
 }
 
 #Check config and create build folders
@@ -166,6 +175,8 @@ case $1 in
 			echo "All packages built successfully"
 		fi
 		;;
+	"remove")
+		remove $2;;
 	*)
 		printf "Invalid usage\nUsage: $0 init|add|build_all\n";;
 esac
