@@ -103,7 +103,7 @@ function add {
 	cd $BUILDDIR
 	git clone https://aur.archlinux.org/$1.git
 	cd $1
-	build_pkg $1 new
+	build_pkg $1 new -f
 	return 0
 }
 
@@ -167,5 +167,5 @@ case $1 in
 		fi
 		;;
 	*)
-		printf "Invalid usage\nUsage: $0 init|add|build_all\n";;
+		printf "Invalid usage\nUsage: $0 init|add|build-all\n";;
 esac
