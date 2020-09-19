@@ -50,7 +50,7 @@ function build_pkg {
 	fi
 
 	#remove old versions before build
-	rm $1*.pkg.tar.xz
+	rm *$1*.pkg.tar.xz*
 
 	#make and force rebuild if is git package
 	makepkg -s --noconfirm $([ $CLEAN == "Y" ] && echo "-c") $([ $SIGN == "Y" ] && echo "--sign --key $KEY") $([ "$2" == "-f" ] && echo -f)
@@ -64,9 +64,10 @@ function build_pkg {
 	#latest="$(newold_matching_file n '*.pkg.tar.xz')"
 	#or f in $(find g.tar.xz'
 	#o
-	rm $REPODIR/$1*.pkg.tar.xz
-	cp $1*.pkg.tar.xz $REPODIR/
-	repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$1*.pkg.tar.xz
+	rm $REPODIR/*$1*.pkg.tar.xz*
+	cp *$1*.pkg.tar.xz $REPODIR/
+	[ "$SIGN" == "Y" ] && cp *$1*.pkg.tar.xz.sig $REPODIR
+	repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/*$1*.pkg.tar.xz
 	#one
 
 	#Remove old versions of packages
