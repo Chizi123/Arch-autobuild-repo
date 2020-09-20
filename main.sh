@@ -161,6 +161,16 @@ function init {
 	return 0
 }
 
+function send_email {
+	(
+	echo "From: build@localhost"
+	echo "To: $EMAIL"
+	echo "Subject: Build errors"
+	echo "There were build errors for the build at $(date), please address them soon."
+	echo "The errors were: $ERRORS"
+	) | sendmail -t
+}
+
 case $1 in
 	"init")
 		init;;
@@ -171,11 +181,7 @@ case $1 in
 		if [ "$ERRORS" != "" ]; then
 			echo "Errors in packages $ERRORS"
 			if [ "$EMAIL" != "" ]; then
-				echo "To: $EMAIL
-					 Subject: Build errors
-
-					 There were build errors for the build at $(date), please address them soon
-					 The errors were: $ERRORS" | sendmail -t
+				send_email
 			fi
 		else
 			echo "All packages built successfully"
