@@ -88,6 +88,7 @@ function build_all {
 	if [ $UPDATE == "Y" ]; then
 		sudo pacman -Syu --noconfirm
 	fi
+
 	#update every package currently stored
 	for d in $(find $BUILDDIR -maxdepth 1 -mindepth 1 -type d)
 	do
@@ -170,7 +171,11 @@ case $1 in
 		if [ "$ERRORS" != "" ]; then
 			echo "Errors in packages $ERRORS"
 			if [ "$EMAIL" != "" ]; then
-				printf "Build for $(date)\nErrors found in $ERRORS\nPlease address these soon" | sendmail $EMAIL
+				echo "To: $EMAIL
+					 Subject: Build errors
+
+					 There were build errors for the build at $(date), please address them soon
+					 The errors were: $ERRORS" | sendmail -t
 			fi
 		else
 			echo "All packages built successfully"
