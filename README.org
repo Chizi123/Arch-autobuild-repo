@@ -1,16 +1,26 @@
 #+TITLE: Auto-build package repository for Arch Linux
 
 * What is this?
-This is a package autobuild solution for Arch Linux.
-It supports the automated building of packages from the AUR.
+This is an automatic package building solution for Arch Linux.
+It supports building packages from PKGBUILDs attached to git repositories, such as the AUR.
 
-Currently it supports package signing and building clean from source.
-It can help to set itself up and generate GPG keys if need be.
+Currently it supports package signing and building clean from source (untested).
+It can help to set itself up and generate GPG keys if need be (partially tested).
+Notifications can be sent using the sendmail command, which is supported in Postfix and OpenSMTPD.
 
-The chroot files are here from an older version of this project and are here as I think they're interesting.
+The chroot generation script is here from an older version of this project and I think its interesting.
+
+* Features
+- Automatic building from the AUR
+- Automatic rebuilding of git packages
+- Parallel builds to speed up the build process
+- Package signing
+- Clean building
+- Automated set up
+- Supports multiple targets from a single PKGBUILD
 
 * Set-up
-Edit the variables at the top of ~main.sh~ to suit your repository details.
+Edit the variables in ~vars.sh~ to suit your repository details.
 Have a look at the init function near the bottom of the file to decide if you want to run it.
 If you decide to generate a GPG key, edit the name, comment and email so that it fits you.
 
@@ -19,8 +29,15 @@ For xz compression, add the ~--threads=0~ option to COMPRESSXZ such that it read
 ccache may be useful to decrease the times of git packages, due to the little changes.
 
 * Usage
-To add a package ~main.sh add [package]~ should be run. Currently I only support adding one package at a time.
-To update all packages, use ~main.sh build-all~. A ~-f~ flag can be used to force a rebuild of all the packages.
+To add a package ~main.sh add [package]~ should be run.
+If a package fails to build, it can be manually rebuilt by reading it.
+I find that removing and reading often solves any problems.
+
+Packages can be removed with ~main.sh remove [package]~.
+This remove it from the repo, build folder and deletes any built versions in the repository directory.
+
+To update all packages, use ~main.sh build-all~.
+A ~-f~ flag can be used to force a rebuild of all the packages.
 To allow automatic building, use a cronjob or write a systemd unit, there are many guides out there, although I may add examples if I feel like it.
 
 * To Dos
@@ -28,3 +45,5 @@ To allow automatic building, use a cronjob or write a systemd unit, there are ma
 - AUR dependency checking and automatic resolution :: Something like what aurutils does, maybe I can steal it from there
 - Error catching for builds which fail. :: Have emailing, but nothing more advanced. Would be nice to have some basic error handling in the script
 # - Create a universal variables file :: Not sure how useful this would be, but could be nice
+# - Build parallelism :: Try and make packages build in parallel, place a lock on the repo file.
+# - Add or remove multiple packages at a time :: Make it less tedious to add packages
