@@ -127,19 +127,23 @@ function build_all {
 #There is no name checking so be sure to put in the name correctly
 # Usage: add [package name]
 function add {
-	cd $BUILDDIR
-	git clone https://aur.archlinux.org/$1.git
-	cd $1
-	build_pkg $1 new -f
+	for i in $@; do
+		cd $BUILDDIR
+		git clone https://aur.archlinux.org/$i.git
+		cd $i
+		build_pkg $i new -f
+	done
 	return 0
 }
 
 #Remove a package from the build list and repository
 # Usage remove [package name]
 function remove {
-	rm -rf $BUILDDIR/$1*
-	repo-remove $REPODIR/$REPONAME.db.tar.xz $1
-	rm $REPODIR/$1*
+	for i in $@; do
+		rm -rf $BUILDDIR/$i*
+		repo-remove $REPODIR/$REPONAME.db.tar.xz $i
+		rm $REPODIR/$i*
+	done
 }
 
 #Check config and create build folders
