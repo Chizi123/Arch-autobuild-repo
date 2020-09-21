@@ -58,9 +58,11 @@ function build_pkg {
 		return 1
 	fi
 
+	#Move package to repodir and add to repo db
 	rm $REPODIR/*$1*.pkg.tar.xz*
 	cp *$1*.pkg.tar.xz $REPODIR/
 	[ "$SIGN" == "Y" ] && cp *$1*.pkg.tar.xz.sig $REPODIR
+	# Add package to waiting list to be added to repo db
 	while [ 1 ]; do
 		if [ $(cat $REPODIR/.waitlist.lck) == 1 ]; then
 			sleep 1
@@ -72,17 +74,17 @@ function build_pkg {
 			fi
 	done
 	while [ 1 ]; do
+		# Wait until package is at the top of the queue and add to db
 		if [ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]; then
-
-	repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/*$1*.pkg.tar.xz
+			repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/*$1*.pkg.tar.xz
 			while [ 1 ]; do
 				if [ $(cat $REPODIR/.waitlist.lck) == 1 ]; then
 					sleep 1
 				else
+					# Remove self from top of queue
 					echo 1 > $REPODIR/.waitlist.lck
 					tail -n +2 $REPODIR/.waitlist > $REPODIR/.waitlist.tmp
-					cat $REPODIR/.waitlist.tmp > $REPODIR/.waitlist
-					rm $REPODIR/.waitlist.tmp
+					mv $REPODIR/.waitlist.tmp $REPODIR/.waitlist
 					echo 0 > $REPODIR/.waitlist.lck
 					break
 				fi
