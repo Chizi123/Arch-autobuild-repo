@@ -2,7 +2,7 @@
 #A basic bash script to automate the building of arch packages
 # Usage: main.sh init|add|build_all [-f force]
 
-source vars.sh
+source $(dirname "$(realpath $0)")/vars.sh
 
 ERRORS=""
 
@@ -56,19 +56,44 @@ function build_pkg {
 	makepkg -s --noconfirm $([ $CLEAN == "Y" ] && echo "-c") $([ $SIGN == "Y" ] && echo "--sign --key $KEY") $([ "$2" == "-f" ] && echo -f)
 	if [ $? != 0 ]; then
 		#Register error
-		ERRORS="$ERRORS $1"
+		echo $1 >> $REPODIR/.errors
 		return 1
 	fi
 
-	#copy package to repo directory
-	#latest="$(newold_matching_file n '*.pkg.tar.xz')"
-	#or f in $(find g.tar.xz'
-	#o
 	rm $REPODIR/*$1*.pkg.tar.xz*
 	cp *$1*.pkg.tar.xz $REPODIR/
 	[ "$SIGN" == "Y" ] && cp *$1*.pkg.tar.xz.sig $REPODIR
+	while [ 1 ]; do
+		if [ $(cat $REPODIR/.waitlist.lck) == 1 ]; then
+			sleep 1
+		else 
+			echo 1 > $REPODIR/.waitlist.lck
+			echo $1 >> $REPODIR/.waitlist
+			echo 0 > $REPODIR/.waitlist.lck
+			break
+			fi
+	done
+	while [ 1 ]; do
+		if [ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]; then
+	
 	repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/*$1*.pkg.tar.xz
-	#one
+			while [ 1 ]; do
+				if [ $(cat $REPODIR/.waitlist.lck) == 1 ]; then
+					sleep 1
+				else 
+					echo 1 > $REPODIR/.waitlist.lck
+					tail -n +2 $REPODIR/.waitlist > $REPODIR/.waitlist.tmp
+					cat $REPODIR/.waitlist.tmp > $REPODIR/.waitlist
+					rm $REPODIR/.waitlist.tmp
+					echo 0 > $REPODIR/.waitlist.lck
+					break
+				fi
+			done
+			break
+		else
+			sleep 10
+		fi	
+	done
 
 	#Remove old versions of packages
 	#TODO: Want to be able to keep multiple versions of old packages, future work
@@ -93,8 +118,9 @@ function build_all {
 	for d in $(find $BUILDDIR -maxdepth 1 -mindepth 1 -type d)
 	do
 		cd $d
-		build_pkg $(echo $d | rev | cut -d'/' -f1 | rev) $1
+		build_pkg $(echo $d | rev | cut -d'/' -f1 | rev) $1 > /dev/null &
 	done
+	wait
 
 	return 0
 }
@@ -166,8 +192,8 @@ function send_email {
 	echo "From: build@localhost"
 	echo "To: $EMAIL"
 	echo "Subject: Build errors"
-	echo "There were build errors for the build at $(date), please address them soon."
-	echo "The errors were: $ERRORS"
+	echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
+	echo "The errors were: $1"
 	) | sendmail -t
 }
 
@@ -178,10 +204,12 @@ case $1 in
 		add $2;;
 	"build-all")
 		build_all $([ "$2" == "-f" ] && echo "-f")
-		if [ "$ERRORS" != "" ]; then
-			echo "Errors in packages $ERRORS"
+		if [ -f $REPODIR/.errors ]; then
+			ERRORS=$(cat $REPODIR/.errors | tr '\n' ' ')
+			rm $REPODIR/.errors
+			echo "Errors in packages: $ERRORS"
 			if [ "$EMAIL" != "" ]; then
-				send_email
+				send_email $ERRORS
 			fi
 		else
 			echo "All packages built successfully"
