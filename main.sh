@@ -4,8 +4,6 @@
 
 source $(dirname "$(realpath $0)")/vars.sh
 
-ERRORS=""
-
 #Helper for finding newest and oldest files
 #Sourced from stack overflow
 # Usage: newold_matching_file [n/o] [filename]
@@ -66,7 +64,7 @@ function build_pkg {
 	while [ 1 ]; do
 		if [ $(cat $REPODIR/.waitlist.lck) == 1 ]; then
 			sleep 1
-		else 
+		else
 			echo 1 > $REPODIR/.waitlist.lck
 			echo $1 >> $REPODIR/.waitlist
 			echo 0 > $REPODIR/.waitlist.lck
@@ -75,12 +73,12 @@ function build_pkg {
 	done
 	while [ 1 ]; do
 		if [ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]; then
-	
+
 	repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/*$1*.pkg.tar.xz
 			while [ 1 ]; do
 				if [ $(cat $REPODIR/.waitlist.lck) == 1 ]; then
 					sleep 1
-				else 
+				else
 					echo 1 > $REPODIR/.waitlist.lck
 					tail -n +2 $REPODIR/.waitlist > $REPODIR/.waitlist.tmp
 					cat $REPODIR/.waitlist.tmp > $REPODIR/.waitlist
@@ -92,7 +90,7 @@ function build_pkg {
 			break
 		else
 			sleep 10
-		fi	
+		fi
 	done
 
 	#Remove old versions of packages
@@ -148,6 +146,10 @@ function remove {
 #Set variables before usage
 # Usage: init
 function init {
+	if [ $uid != 1 ]; then
+		echo "This must be run as root"
+	fi
+
 	#check for configuration here
 	[ -z $REPODIR ] && echo "Enter REPODIR" && return 1
 	[ -z $BUILDDIR ] && echo "Enter BUILDDIR" && return 2
@@ -158,7 +160,7 @@ function init {
 	[ ! -d $BUILDDIR ] && mkdir -p $BUILDDIR
 
 	#packages required to build others
-	sudo pacman -S --noconfirm base-devel git
+	pacman -S --noconfirm base-devel git
 
 	#add repo to pacman.conf so can install own packages
 	if [ -z $(grep "$REPONAME" /etc/pacman.conf) ]; then
@@ -166,7 +168,7 @@ function init {
 	fi
 
 	#create GPG key for package signing
-	if [ "$SIGN" == "Y" && "$KEY" == "" ]; then
+	if [[ "$SIGN" == "Y" && "$KEY" == "" ]]; then
 		(
 			echo "Key-Type: RSA"
 			echo "Key-Length: 2048"
