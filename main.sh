@@ -40,7 +40,7 @@ function newold_matching_file
 }
 
 #Build latest version of a package
-# Usage: build_pkg [package name] [new?] [-f force]
+# Usage: build_pkg [package name] [-f force]
 function build_pkg {
 	#check if PKGBUILD has updated, don't rebuild if hasn't changed
 	if [[ ! -z $(git pull | grep "Already up to date.") && -z $(echo $1 | grep git) && -z $2 ]]; then
@@ -48,23 +48,37 @@ function build_pkg {
 	fi
 
 	#remove old versions before build
-	rm *$1*.pkg.tar.xz*
+	rm *$1*.pkg.tar.*
 
 	#make and force rebuild if is git package
-	makepkg -s --noconfirm $([ $CLEAN == "Y" ] && echo "-c") $([ $SIGN == "Y" ] && echo "--sign --key $KEY") $([ "$2" == "-f" ] && echo -f)
-	if [ $? != 0 ]; then
+	# Mictosoft fonts have problems with checksums and need a seperate argument
+	if [[ "$1" == "ttf-ms-win10" ||
+		"$1" == "ttf-office-2007-fonts" ||
+		"$1" == "ttf-ms-win8" ||
+		"$1" == "ttf-win7-fonts" ]]; then
+		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) --skipchecksums
+	else
+		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f)
+	fi
+	if [[ $? != 0 ]]; then
 		#Register error
 		echo $1 >> $REPODIR/.errors
 		return 1
 	fi
 
 	#Move package to repodir and add to repo db
-	rm $REPODIR/*$1*.pkg.tar.xz*
-	cp *$1*.pkg.tar.xz $REPODIR/
-	[ "$SIGN" == "Y" ] && cp *$1*.pkg.tar.xz.sig $REPODIR
+	rm $REPODIR/*$1*.pkg.tar.??*
+	cp *$1*.pkg.tar.?? $REPODIR/
+	[[ "$SIGN" == "Y" ]] && cp *$1*.pkg.tar.??.sig $REPODIR/
+
+	# Weird exceptions
+	if [[ "$1" == "zoom" ]]; then
+		rm zoom*_orig*.pkg.tar.xz
+	fi
+
 	# Add package to waiting list to be added to repo db
-	while [ 1 ]; do
-		if [ $(cat $REPODIR/.waitlist.lck) == 1 ]; then
+	while true; do
+		if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
 			sleep 1
 		else
 			echo 1 > $REPODIR/.waitlist.lck
@@ -73,12 +87,12 @@ function build_pkg {
 			break
 			fi
 	done
-	while [ 1 ]; do
+	while true; do
 		# Wait until package is at the top of the queue and add to db
-		if [ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]; then
-			repo-add $([ "$SIGN" == "Y" ] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/*$1*.pkg.tar.xz
-			while [ 1 ]; do
-				if [ $(cat $REPODIR/.waitlist.lck) == 1 ]; then
+		if [[ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]]; then
+			repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/*$1*.pkg.tar.??
+			while true; do
+				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
 					sleep 1
 				else
 					# Remove self from top of queue
@@ -110,7 +124,7 @@ function build_pkg {
 # Usage: build_all [-f force]
 function build_all {
 	#system update
-	if [ $UPDATE == "Y" ]; then
+	if [[ $UPDATE == "Y" ]]; then
 		sudo pacman -Syu --noconfirm
 	fi
 
@@ -118,7 +132,11 @@ function build_all {
 	for d in $(find $BUILDDIR -maxdepth 1 -mindepth 1 -type d)
 	do
 		cd $d
-		build_pkg $(echo $d | rev | cut -d'/' -f1 | rev) $1 > /dev/null &
+		if [[ "$PARALLEL" == "Y" ]]; then
+			build_pkg $(echo $d | rev | cut -d'/' -f1 | rev) $1 &> $([[ "$QUIET" == "Y" ]] && echo "/dev/null" || echo "/dev/tty")  &
+		else
+			build_pkg $(echo $d | rev | cut -d'/' -f1 | rev) $1 &> $([[ "$QUIET" == "Y" ]] && echo "/dev/null" || echo "/dev/tty")
+		fi
 	done
 	wait
 
@@ -133,7 +151,7 @@ function add {
 		cd $BUILDDIR
 		git clone https://aur.archlinux.org/$i.git
 		cd $i
-		build_pkg $i new -f
+		build_pkg $i -f
 	done
 	return 0
 }
@@ -152,24 +170,24 @@ function remove {
 #Set variables before usage
 # Usage: init
 function init {
-	if [ $uid != 1 ]; then
+	if [[ $uid != 1 ]]; then
 		echo "This must be run as root"
 	fi
 
 	#check for configuration here
-	[ -z $REPODIR ] && echo "Enter REPODIR" && return 1
-	[ -z $BUILDDIR ] && echo "Enter BUILDDIR" && return 2
-	[ -z $REPONAME ] && echo "Enter REPONAME" && return 3
+	[[ -z $REPODIR ]] && echo "Enter REPODIR" && return 1
+	[[ -z $BUILDDIR ]] && echo "Enter BUILDDIR" && return 2
+	[[ -z $REPONAME ]] && echo "Enter REPONAME" && return 3
 
 	#make build directories
-	[ ! -d $REPODIR ] && mkdir -p $REPODIR
-	[ ! -d $BUILDDIR ] && mkdir -p $BUILDDIR
+	[[ ! -d $REPODIR ]] && mkdir -p $REPODIR
+	[[ ! -d $BUILDDIR ]] && mkdir -p $BUILDDIR
 
 	#packages required to build others
 	pacman -S --noconfirm base-devel git
 
 	#add repo to pacman.conf so can install own packages
-	if [ -z $(grep "$REPONAME" /etc/pacman.conf) ]; then
+	if [[ -z $(grep "$REPONAME" /etc/pacman.conf) ]]; then
 		printf "[$REPONAME]\nSigLevel = Optional TrustAll\nServer = file://$REPODIR\n" >> /etc/pacman.conf
 	fi
 
@@ -209,22 +227,24 @@ case $1 in
 	"init")
 		init;;
 	"add")
-		add $2;;
+		add ${@:2};;
 	"build-all")
-		build_all $([ "$2" == "-f" ] && echo "-f")
-		if [ -f $REPODIR/.errors ]; then
-			ERRORS=$(cat $REPODIR/.errors | tr '\n' ' ')
-			rm $REPODIR/.errors
-			echo "Errors in packages: $ERRORS"
-			if [ "$EMAIL" != "" ]; then
-				send_email $ERRORS
-			fi
-		else
-			echo "All packages built successfully"
-		fi
-		;;
+		build_all $([[ "$2" == "-f" ]] && echo "-f");;
 	"remove")
-		remove $2;;
+		remove ${@:2};;
 	*)
 		printf "Invalid usage\nUsage: $0 init|add|build-all\n";;
 esac
+
+# Error reporting, send email only for build-all as assuming an batch job for that
+if [[ -f $REPODIR/.errors ]]; then
+	ERRORS=$(cat $REPODIR/.errors | tr '\n' ' ')
+	rm $REPODIR/.errors
+	echo "Errors in packages: $ERRORS"
+	if [[ "$EMAIL" != "" && "$1" == "build-all" ]]; then
+		send_email $ERRORS
+	fi
+else
+	echo "All packages built successfully"
+fi
+
