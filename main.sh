@@ -219,7 +219,7 @@ function send_email {
 	echo "To: $EMAIL"
 	echo "Subject: Build errors"
 	echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
-	echo "The errors were: $1"
+	echo "The errors were: $@"
 	) | sendmail -t
 }
 
