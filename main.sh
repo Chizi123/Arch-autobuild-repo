@@ -66,10 +66,19 @@ function build_pkg {
 		return 1
 	fi
 
+	#Get build artifact names
+	source PKGBUILD
+	pkgs=()
+	for i in ${pkgname[@]}; do
+		pkgs+=("$i-$pkgver-$pkgrel")
+	done
+
 	#Move package to repodir and add to repo db
-	rm $REPODIR/*$1*.pkg.tar.??*
-	cp *$1*.pkg.tar.?? $REPODIR/
-	[[ "$SIGN" == "Y" ]] && cp *$1*.pkg.tar.??.sig $REPODIR/
+	for i in ${pkgs[@]}; do
+			 rm $REPODIR/$i*.pkg.tar.??*
+			 cp $i*.pkg.tar.?? $REPODIR/
+			 [[ "$SIGN" == "Y" ]] && cp $i*.pkg.tar.??.sig $REPODIR/
+	done
 
 	# Weird exceptions
 	if [[ "$1" == "zoom" ]]; then
@@ -90,7 +99,9 @@ function build_pkg {
 	while true; do
 		# Wait until package is at the top of the queue and add to db
 		if [[ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]]; then
-			repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/*$1*.pkg.tar.??
+			for i in ${pkgs[@]}; do
+				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$i*.pkg.tar.??
+			done
 			while true; do
 				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
 					sleep 1
