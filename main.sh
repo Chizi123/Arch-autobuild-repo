@@ -71,14 +71,19 @@ function build_pkg {
 	pkgs=()
 	for i in ${pkgname[@]}; do
 		#pkgs+=("$i-$pkgver-$pkgrel")
-		pkgs+=("$i")
+		pkgs+=("$(find . -mindepth 1 -maxdepth 1 -type f -name "$1*.pkg.tar.*" -not -name "*.sig" | sed 's/^\.\///')")
 	done
 
 	#Move package to repodir and add to repo db
+	#Dont change the database if rebuilt the same package at same release and version
 	for i in ${pkgs[@]}; do
-			 rm $REPODIR/$i*.pkg.tar.??*
-			 cp $i*.pkg.tar.?? $REPODIR/
-			 [[ "$SIGN" == "Y" ]] && cp $i*.pkg.tar.??.sig $REPODIR/
+		if [[ -f $REPODIR/$i ]]; then
+			pkgs=${pkgs[@]/$i}
+		else
+			rm $REPODIR/*$1*.pkg.tar.*
+			cp $i $REPODIR/
+			[[ "$SIGN" == "Y" ]] && cp $i.sig $REPODIR/
+		fi
 	done
 
 	# Weird exceptions
@@ -101,7 +106,7 @@ function build_pkg {
 		# Wait until package is at the top of the queue and add to db
 		if [[ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]]; then
 			for i in ${pkgs[@]}; do
-				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$i*.pkg.tar.??
+				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$i
 			done
 			while true; do
 				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
