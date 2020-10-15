@@ -48,7 +48,7 @@ function build_pkg {
 	fi
 
 	#remove old versions before build
-	rm *$1*
+	rm -f *$1*.tar.*
 
 	#make and force rebuild if is git package
 	# Mictosoft fonts have problems with checksums and need a seperate argument
@@ -80,7 +80,7 @@ function build_pkg {
 		if [[ -f $REPODIR/$i ]]; then
 			pkgs=${pkgs[@]/$i}
 		else
-			rm $REPODIR/*$1*
+			rm -f $REPODIR/*$1*.tar.*
 			cp $i $REPODIR/
 			[[ "$SIGN" == "Y" ]] && cp $i.sig $REPODIR/
 		fi
@@ -194,8 +194,10 @@ function add {
 		for i in ${makedepends[@]}; do
 			add $i
 		done
-		sudo pacman -Sy
-		
+		if [[ -n "${makedepends[@]}" ]]; then
+			sudo pacman -Sy
+		fi
+
 		#Actually build wanted package
 		build_pkg $i -f
 	done
@@ -206,9 +208,9 @@ function add {
 # Usage remove [package name]
 function remove {
 	for i in $@; do
-		rm -rf $BUILDDIR/$i*
+		rm -rf $BUILDDIR/$i
 		repo-remove $REPODIR/$REPONAME.db.tar.xz $i
-		rm $REPODIR/$i*
+		rm -f $REPODIR/*$i*
 	done
 }
 
