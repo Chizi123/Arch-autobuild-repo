@@ -173,13 +173,30 @@ function build_all {
 }
 
 #Add a new package to be built
-#There is no name checking so be sure to put in the name correctly
+#Adding build dependencies is 
 # Usage: add [package name]
 function add {
 	for i in $@; do
 		cd $BUILDDIR
+		if [[ -z $(git ls-remote https://aur.archlinux.org/$i.git) ]]; then
+			echo "Not a package"
+			exit 2
+		fi
 		git clone https://aur.archlinux.org/$i.git
 		cd $i
+
+		#check for all build dependencies
+		for i in ${makedepends[@]}; do
+			if pacman -Si $i; then 
+				makedepends=${makedepends[@]/$delete}
+			fi &>/dev/null
+		done
+		for i in ${makedepends[@]}; do
+			add $i
+		done
+		sudo pacman -Sy
+		
+		#Actually build wanted package
 		build_pkg $i -f
 	done
 	return 0
