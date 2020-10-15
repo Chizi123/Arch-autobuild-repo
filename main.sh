@@ -48,7 +48,7 @@ function build_pkg {
 	fi
 
 	#remove old versions before build
-	rm *$1*.pkg.tar.*
+	rm *$1*
 
 	#make and force rebuild if is git package
 	# Mictosoft fonts have problems with checksums and need a seperate argument
@@ -71,7 +71,7 @@ function build_pkg {
 	pkgs=()
 	for i in ${pkgname[@]}; do
 		#pkgs+=("$i-$pkgver-$pkgrel")
-		pkgs+=("$(find . -mindepth 1 -maxdepth 1 -type f -name "$1*.pkg.tar.*" -not -name "*.sig" | sed 's/^\.\///')")
+		pkgs+=("$(find . -mindepth 1 -maxdepth 1 -type f -name "$1*.tar.*" -not -name "*.sig" | sed 's/^\.\///')")
 	done
 
 	#Move package to repodir and add to repo db
@@ -80,7 +80,7 @@ function build_pkg {
 		if [[ -f $REPODIR/$i ]]; then
 			pkgs=${pkgs[@]/$i}
 		else
-			rm $REPODIR/*$1*.pkg.tar.*
+			rm $REPODIR/*$1*
 			cp $i $REPODIR/
 			[[ "$SIGN" == "Y" ]] && cp $i.sig $REPODIR/
 		fi
@@ -106,7 +106,7 @@ function build_pkg {
 		# Wait until package is at the top of the queue and add to db
 		if [[ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]]; then
 			for i in ${pkgs[@]}; do
-				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.xz $REPODIR/$i
+				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n COMPRESSION ] || echo $COMPRESSION && echo zst) $REPODIR/$i
 			done
 			while true; do
 				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
