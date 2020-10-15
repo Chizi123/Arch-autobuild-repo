@@ -9,34 +9,34 @@ source $(dirname "$(realpath $0)")/vars.sh
 # Usage: newold_matching_file [n/o] [filename]
 function newold_matching_file
 {
-    # Use ${1-} instead of $1 in case 'nounset' is set
-    local -r glob_pattern=${2-}
+	# Use ${1-} instead of $1 in case 'nounset' is set
+	local -r glob_pattern=${2-}
 
-    # To avoid printing garbage if no files match the pattern, set
-    # 'nullglob' if necessary
-    local -i need_to_unset_nullglob=0
-    if [[ ":$BASHOPTS:" != *:nullglob:* ]] ; then
-        shopt -s nullglob
-        need_to_unset_nullglob=1
-    fi
+	# To avoid printing garbage if no files match the pattern, set
+	# 'nullglob' if necessary
+	local -i need_to_unset_nullglob=0
+	if [[ ":$BASHOPTS:" != *:nullglob:* ]] ; then
+		shopt -s nullglob
+		need_to_unset_nullglob=1
+	fi
 
-    file=
-    for f in $glob_pattern ; do
+	file=
+	for f in $glob_pattern ; do
 		if [ $1 == "n" ]; then
 			[[ -z $f || $f -nt $_file ]] && file=$f
 		elif [ $1 == "o" ]; then
 			[[ -z $f || $f -ot $_file ]] && file=$f
 		fi
-    done
+	done
 
-    # To avoid unexpected behaviour elsewhere, unset nullglob if it was
-    # set by this function
-    (( need_to_unset_nullglob )) && shopt -u nullglob
+	# To avoid unexpected behaviour elsewhere, unset nullglob if it was
+	# set by this function
+	(( need_to_unset_nullglob )) && shopt -u nullglob
 
-    # Use printf instead of echo in case the file name begins with '-'
-    [[ -n $file ]] && printf '%s\n' "$file"
+	# Use printf instead of echo in case the file name begins with '-'
+	[[ -n $file ]] && printf '%s\n' "$file"
 
-    return 0
+	return 0
 }
 
 #Build latest version of a package
@@ -106,7 +106,7 @@ function build_pkg {
 		# Wait until package is at the top of the queue and add to db
 		if [[ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]]; then
 			for i in ${pkgs[@]}; do
-				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n COMPRESSION ] || echo $COMPRESSION && echo zst) $REPODIR/$i
+				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $REPODIR/$i
 			done
 			while true; do
 				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
@@ -141,8 +141,8 @@ function build_pkg {
 	#Currently old package versions stay in the repodir indefinately
 	# while [ $NUM_OLD \< $(find . -name '*.pkg.tar.xz' | wc -l) ]
 	# do
-	# 	old=$(newold_matching_file o '*.pkg.tar.xz')
-	# 	rm $REPODIR/$old $old
+	#	old=$(newold_matching_file o '*.pkg.tar.xz')
+	#	rm $REPODIR/$old $old
 	# done
 	return 0
 }
@@ -173,7 +173,7 @@ function build_all {
 }
 
 #Add a new package to be built
-#Adding build dependencies is 
+#Adding build dependencies is
 # Usage: add [package name]
 function add {
 	for i in $@; do
@@ -187,7 +187,7 @@ function add {
 
 		#check for all build dependencies
 		for i in ${makedepends[@]}; do
-			if pacman -Si $i; then 
+			if pacman -Si $i; then
 				makedepends=${makedepends[@]/$delete}
 			fi &>/dev/null
 		done
@@ -209,7 +209,7 @@ function add {
 function remove {
 	for i in $@; do
 		rm -rf $BUILDDIR/$i
-		repo-remove $REPODIR/$REPONAME.db.tar.xz $i
+		repo-remove $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $i
 		rm -f $REPODIR/*$i*
 	done
 }
@@ -295,4 +295,3 @@ if [[ -f $REPODIR/.errors ]]; then
 else
 	echo "All packages built successfully"
 fi
-
