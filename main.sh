@@ -70,7 +70,8 @@ function build_pkg {
 	source PKGBUILD
 	pkgs=()
 	for i in ${pkgname[@]}; do
-		pkgs+=("$i-$pkgver-$pkgrel")
+		#pkgs+=("$i-$pkgver-$pkgrel")
+		pkgs++("$i")
 	done
 
 	#Move package to repodir and add to repo db
@@ -116,6 +117,16 @@ function build_pkg {
 			done
 			break
 		else
+			if [[ -z "$(grep $1 $REPODIR/.waitlist)" ]]; then
+				# Not on waitlist for some reason, need to readd
+				if [[ $(cat $REPODIR/.waitlist.lck) == 1]]; then
+					sleep 1
+				else
+					echo 1 > $REPODIR/.waitlist.lck
+					echo $1 >> $REPODIR/.waitlist
+					echo 0 > $REPODIR/.waitlist.lck
+				fi
+			fi
 			sleep 10
 		fi
 	done
