@@ -58,7 +58,7 @@ function build_pkg {
 		"$1" == "ttf-win7-fonts" ]]; then
 		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) --skipchecksums
 	else
-		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f)
+		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) 2>&1
 	fi
 	if [[ $? != 0 ]]; then
 		#Register error
@@ -116,6 +116,15 @@ function build_pkg {
 			done
 			break
 		else
+			if [[ -z "$(grep $1 $REPODIR/.waitlist)" ]]; then
+				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
+					sleep 1
+				else
+					echo 1 > $REPODIR/.waitlist.lck
+					echo $1 >> $REPODIR/.waitlist
+					echo 0 > $REPODIR/.waitlist.lck
+				fi
+			fi
 			sleep 10
 		fi
 	done
@@ -139,6 +148,8 @@ function build_all {
 		sudo pacman -Syu --noconfirm
 	fi
 
+	#Remove waitlist and errors from old builds
+	rm -f $REPODIR/{.waitlist,.errors}
 	#update every package currently stored
 	for d in $(find $BUILDDIR -maxdepth 1 -mindepth 1 -type d)
 	do
