@@ -209,7 +209,7 @@ function add {
 function remove {
 	for i in $@; do
 		rm -rf $BUILDDIR/$i
-		repo-remove $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $i
+		repo-remove $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $i
 		rm -f $REPODIR/*$i*
 	done
 }
