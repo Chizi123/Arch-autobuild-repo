@@ -205,13 +205,26 @@ function add {
 }
 
 #Remove a package from the build list and repository
-# Usage remove [package name]
+#Usage of -a removes all packages moved to official repos
+# Usage remove [-a|package name]
 function remove {
-	for i in $@; do
-		rm -rf $BUILDDIR/$i
-		repo-remove $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $i
-		rm -f $REPODIR/*$i*
-	done
+	if [[ "$1" == "-a" ]]; then
+		rmlist=""
+		rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq core | sort) | tr '\n' ' ')"
+		rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq extra | sort) | tr '\n' ' ')"
+		rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq community | sort) | tr '\n' ' ')"
+		for i in $rmlist; do
+			rm -rf $BUILDDIR/$i
+			repo-remove $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $i
+			rm -f $REPODIR/*$i*
+		done
+	else
+		for i in $@; do
+			rm -rf $BUILDDIR/$i
+			repo-remove $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $i
+			rm -f $REPODIR/*$i*
+		done
+	fi
 }
 
 #Check config and create build folders
