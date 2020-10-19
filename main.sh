@@ -81,11 +81,10 @@ function build_pkg {
 	#Dont change the database if rebuilt the same package at same release and version
 	flag=0
 	for i in ${pkgs[@]}; do
-		if [[ -f $REPODIR/$i ]]; then
+		if [[ ! -f $REPODIR/$i ]]; then
 			flag=1
 		fi
 	done
-	flag=1
 	if [[ $flag == 1 ]]; then
 		rm -f $REPODIR/*$1*.tar.*
 		for i in ${pkgs[@]}; do
