@@ -66,25 +66,35 @@ function build_pkg {
 		return 1
 	fi
 
-	#Get build artifact names
+	#Get build artifact names from PKGBUILD and build artifacts
+	#Remove duplicates from the list
 	source PKGBUILD
 	pkgs=()
+	ipkgs=()
 	for i in ${pkgname[@]}; do
 		#pkgs+=("$i-$pkgver-$pkgrel")
-		pkgs+=("$(find . -mindepth 1 -maxdepth 1 -type f \( -name "$1*.pkg.tar.*" -o -name "$1*.src.tar.*" \) -not -name "*.sig" | sed 's/^\.\///')")
+		ipkgs+=($(find . -mindepth 1 -maxdepth 1 -type f \( -name "$i*.pkg.tar.*" -o -name "$i*.src.tar.*" \) -not -name "*.sig" | sed 's/^\.\///'))
 	done
+	while read -r -d '' x; do pkgs+=("$x"); done < <(printf "%s\0" "${ipkgs[@]}" | sort -uz)
 
 	#Move package to repodir and add to repo db
 	#Dont change the database if rebuilt the same package at same release and version
+	flag=0
 	for i in ${pkgs[@]}; do
 		if [[ -f $REPODIR/$i ]]; then
-			pkgs=${pkgs[@]/$i}
-		else
-			rm -f $REPODIR/*$1*.tar.*
-			cp $i $REPODIR/
-			[[ "$SIGN" == "Y" ]] && cp $i.sig $REPODIR/
+			flag=1
 		fi
 	done
+	flag=1
+	if [[ $flag == 1 ]]; then
+		rm -f $REPODIR/*$1*.tar.*
+		for i in ${pkgs[@]}; do
+			cp $i $REPODIR/
+			[[ "$SIGN" == "Y" ]] && cp $i.sig $REPODIR/
+		done
+	else 
+		return;
+	fi
 
 	# Weird exceptions
 	if [[ "$1" == "zoom" ]]; then
@@ -105,9 +115,9 @@ function build_pkg {
 	while true; do
 		# Wait until package is at the top of the queue and add to db
 		if [[ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]]; then
-			for i in ${pkgs[@]}; do
-				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $REPODIR/$i
-			done
+		#	for i in ${pkgs[@]}; do
+				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) ${pkgs[@]}
+		#	done
 			while true; do
 				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
 					sleep 1
