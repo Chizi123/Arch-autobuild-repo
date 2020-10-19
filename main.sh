@@ -71,7 +71,7 @@ function build_pkg {
 	pkgs=()
 	for i in ${pkgname[@]}; do
 		#pkgs+=("$i-$pkgver-$pkgrel")
-		pkgs+=("$(find . -mindepth 1 -maxdepth 1 -type f -name "$1*.tar.*" -not -name "*.sig" | sed 's/^\.\///')")
+		pkgs+=("$(find . -mindepth 1 -maxdepth 1 -type f \( -name "$1*.pkg.tar.*" -o -name "$1*.src.tar.*" \) -not -name "*.sig" | sed 's/^\.\///')")
 	done
 
 	#Move package to repodir and add to repo db
