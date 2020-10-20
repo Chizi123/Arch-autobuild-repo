@@ -241,6 +241,30 @@ function remove {
 	fi
 }
 
+#Check for packages moved to official repos or removed from the AUR
+function check {
+	rmlist=""
+	rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq core | sort) | tr '\n' ' ')"
+	rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq extra | sort) | tr '\n' ' ')"
+	rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq community | sort) | tr '\n' ' ')"
+	removed=()
+	TMPFILE=$(mktemp)
+	for i in $(find $BUILDDIR -mindepth 1 -maxdepth 1 -type d); do
+		check_pkg $TMPFILE "$(echo $i | rev | cut -d'/' -f1 | rev)" &
+	done
+	wait
+	echo "Merged into official repos: $rmlist"
+	echo "Not in AUR: $(cat $TMPFILE | tr '\n' ' ')"
+	rm -f $TMPFILE
+}
+
+function check_pkg {
+	if [[ -z "$(curl -sI "https://aur.archlinux.org/packages/$2" | head -n1 | grep 200)" ]]; then
+		echo "$2" >> $1
+	fi
+}
+
+
 #Check config and create build folders
 #Set variables before usage
 # Usage: init
@@ -307,18 +331,22 @@ case $1 in
 		build_all $([[ "$2" == "-f" ]] && echo "-f");;
 	"remove")
 		remove ${@:2};;
+	"check")
+		check;;
 	*)
-		printf "Invalid usage\nUsage: $0 init|add|build-all\n";;
+		printf "Invalid usage\nUsage: $0 init|add|build-all|check\n";;
 esac
 
 # Error reporting, send email only for build-all as assuming an batch job for that
-if [[ -f $REPODIR/.errors ]]; then
-	ERRORS=$(cat $REPODIR/.errors | tr '\n' ' ')
-	rm $REPODIR/.errors
-	echo "Errors in packages: $ERRORS"
-	if [[ "$EMAIL" != "" && "$1" == "build-all" ]]; then
-		send_email $ERRORS
+if [[ $1 == "build-all" || $1 == "add" ]]; then
+	if [[ -f $REPODIR/.errors ]]; then
+		ERRORS=$(cat $REPODIR/.errors | tr '\n' ' ')
+		rm $REPODIR/.errors
+		echo "Errors in packages: $ERRORS"
+		if [[ "$EMAIL" != "" && "$1" == "build-all" ]]; then
+			send_email $ERRORS
+		fi
+	else
+		echo "All packages built successfully"
 	fi
-else
-	echo "All packages built successfully"
 fi
