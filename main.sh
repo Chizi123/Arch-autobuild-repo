@@ -1,6 +1,6 @@
 #!/bin/bash
 #A basic bash script to automate the building of arch packages
-# Usage: main.sh init|add|build_all [-f force]
+# Usage: main.sh init|check|add|remove|build_all
 
 source $(dirname "$(realpath $0)")/vars.sh
 
@@ -334,7 +334,13 @@ case $1 in
 	"check")
 		check;;
 	*)
-		printf "Invalid usage\nUsage: $0 init|add|build-all|check\n";;
+		echo -e "\033[0;31mInvalid usage\033[0m"
+		echo -e "Usage: $0 init|check|add|remove|build-all"
+		echo -e "\033[0;32minit\033[0m                        - initialise repository for use"
+		echo -e "\033[0;32mcheck\033[0m                       - check if packages have been moved into the official repositories or removed from the AUR"
+		echo -e "\033[0;32madd package ...\033[0m             - add a package to \$BUILDDIR and repository, also used to rebuild failed packages"
+		echo -e "\033[0;32mremove -a | package ...\033[0m     - remove package from \$BUILDDIR and repository, \"-a\" removes packages added to official repos"
+		echo -e "\033[0;32mbuild-all [-f]\033[0m              - build all packages in \$BUILDDIR, \"-f\" force builds whole repository"
 esac
 
 # Error reporting, send email only for build-all as assuming an batch job for that
