@@ -47,7 +47,7 @@ function newold_matching_file
 # Usage: build_pkg [package name] [-f force]
 function build_pkg {
 	#check if PKGBUILD has updated, don't rebuild if hasn't changed
-	if [[ ! -z $(git pull | grep "Already up to date.") && -z $(grep 'pkgver() {' PKGBUILD) && -z $2 ]]; then
+	if [[ -n "$(git pull | grep 'Already up to date.')" && -z "$(grep 'pkgver() {' PKGBUILD)" && -z "$2" ]]; then
 		return 2
 	fi
 
