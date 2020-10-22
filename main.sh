@@ -4,6 +4,10 @@
 
 source $(dirname "$(realpath $0)")/vars.sh
 
+ERRORFILE=$(mktemp)
+WAITLIST=$(mktemp)
+WAITLIST_LCK=$(mktemp)
+
 #Helper for finding newest and oldest files
 #Sourced from stack overflow
 # Usage: newold_matching_file [n/o] [filename]
@@ -62,7 +66,7 @@ function build_pkg {
 	fi
 	if [[ $? != 0 ]]; then
 		#Register error
-		echo $1 >> $REPODIR/.errors
+		echo $1 >> $ERRORFILE
 		return 1
 	fi
 
@@ -107,43 +111,46 @@ function build_pkg {
 
 	# Add package to waiting list to be added to repo db
 	while true; do
-		if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
+		if [[ $(cat $WAITLIST_LCK) == 1 ]]; then
 			sleep 1
 		else
-			echo 1 > $REPODIR/.waitlist.lck
-			echo $1 >> $REPODIR/.waitlist
-			echo 0 > $REPODIR/.waitlist.lck
+			echo 1 > $WAITLIST_LCK
+			echo $1 >> $WAITLIST
+			echo 0 > $WAITLIST_LCK
 			break
 			fi
 	done
 	while true; do
 		# Wait until package is at the top of the queue and add to db
-		if [[ "$(head -n1 $REPODIR/.waitlist)" == "$1" ]]; then
+		if [[ "$(head -n1 $WAITLIST)" == "$1" ]]; then
 		#	for i in ${pkgs[@]}; do
 				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) ${pkgs[@]}
 		#	done
 			while true; do
-				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
+				if [[ $(cat $WAITLIST_LCK) == 1 ]]; then
 					sleep 1
 				else
 					# Remove self from top of queue
-					echo 1 > $REPODIR/.waitlist.lck
-					tail -n +2 $REPODIR/.waitlist > $REPODIR/.waitlist.tmp
-					mv $REPODIR/.waitlist.tmp $REPODIR/.waitlist
-					echo 0 > $REPODIR/.waitlist.lck
+					echo 1 > $WAITLST_LCK
+					TEMP=$(mktemp)
+					tail -n +2 $WAITLIST > $TEMP
+					cp $TEMP $WAITLIST
+					rm $TEMP
+					unset TEMP
+					echo 0 > $WAITLIST_LCK
 					break
 				fi
 			done
 			break
 		else
-			if [[ -z "$(grep $1 $REPODIR/.waitlist)" ]]; then
+			if [[ -z "$(grep $1 $WAITLIST)" ]]; then
 				# Not on waitlist for some reason, need to readd
-				if [[ $(cat $REPODIR/.waitlist.lck) == 1 ]]; then
+				if [[ $(cat $WAITLIST_LCK) == 1 ]]; then
 					sleep 1
 				else
-					echo 1 > $REPODIR/.waitlist.lck
-					echo $1 >> $REPODIR/.waitlist
-					echo 0 > $REPODIR/.waitlist.lck
+					echo 1 > $WAITLIST_LCK
+					echo $1 >> $WAITLIST
+					echo 0 > $WAITLIST_LCK
 				fi
 			fi
 			sleep 10
@@ -169,8 +176,6 @@ function build_all {
 		sudo pacman -Syu --noconfirm
 	fi
 
-	#Remove waitlist and errors from old builds
-	rm -f $REPODIR/{.waitlist,.errors}
 	#update every package currently stored
 	for d in $(find $BUILDDIR -maxdepth 1 -mindepth 1 -type d)
 	do
@@ -345,9 +350,8 @@ esac
 
 # Error reporting, send email only for build-all as assuming an batch job for that
 if [[ $1 == "build-all" || $1 == "add" ]]; then
-	if [[ -f $REPODIR/.errors ]]; then
-		ERRORS=$(cat $REPODIR/.errors | tr '\n' ' ')
-		rm $REPODIR/.errors
+	if [[ -n $(cat $ERRORFILE) ]]; then
+		ERRORS=$(cat $ERRORFILE | tr '\n' ' ')
 		echo "Errors in packages: $ERRORS"
 		if [[ "$EMAIL" != "" && "$1" == "build-all" ]]; then
 			send_email $ERRORS
@@ -356,3 +360,5 @@ if [[ $1 == "build-all" || $1 == "add" ]]; then
 		echo "All packages built successfully"
 	fi
 fi
+
+rm $ERRORFILE $WAITLIST $WAITLIST_LCK
