@@ -131,7 +131,7 @@ function build_pkg {
 					sleep 1
 				else
 					# Remove self from top of queue
-					echo 1 > $WAITLST_LCK
+					echo 1 > $WAITLIST_LCK
 					TEMP=$(mktemp)
 					tail -n +2 $WAITLIST > $TEMP
 					cp $TEMP $WAITLIST
