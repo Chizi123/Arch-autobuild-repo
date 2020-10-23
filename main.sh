@@ -252,7 +252,6 @@ function check {
 	rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq core | sort) | tr '\n' ' ')"
 	rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq extra | sort) | tr '\n' ' ')"
 	rmlist="$rmlist $(comm -12 <(pacman -Slq $REPONAME | sort) <(pacman -Slq community | sort) | tr '\n' ' ')"
-	removed=()
 	TMPFILE=$(mktemp)
 	for i in $(find $BUILDDIR -mindepth 1 -maxdepth 1 -type d); do
 		check_pkg $TMPFILE "$(echo $i | rev | cut -d'/' -f1 | rev)" &
