@@ -81,6 +81,16 @@ function build_pkg {
 	done
 	while read -r -d '' x; do pkgs+=("$x"); done < <(printf "%s\0" "${ipkgs[@]}" | sort -uz)
 
+	# Weird exceptions
+	if [[ "$1" == "zoom" ]]; then
+		rm zoom*_orig*
+		for i in ${pkgs[@]}; do
+			if [ -z "${i##*_orig*}" ]; then
+				pkgs=(${pkgs[@]/$i})
+			fi
+		done
+	fi
+
 	#Move package to repodir and add to repo db
 	#Dont change the database if rebuilt the same package at same release and version
 	flag=0
@@ -97,16 +107,6 @@ function build_pkg {
 		done
 	else 
 		return;
-	fi
-
-	# Weird exceptions
-	if [[ "$1" == "zoom" ]]; then
-		rm zoom*_orig*.pkg.tar.xz
-		for i in ${pkgs[@]}; do
-			if [ -z "${i##*orig*}" ]; then
-				pkgs=${pkgs[@]/$i}
-			fi
-		done
 	fi
 
 	# Add package to waiting list to be added to repo db
