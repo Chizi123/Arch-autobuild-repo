@@ -51,9 +51,6 @@ function build_pkg {
 		return 2
 	fi
 
-	#remove old versions before build
-#	rm -f *$1*.tar.*
-
 	#make and force rebuild if is git package
 	# Mictosoft fonts have problems with checksums and need a seperate argument
 	if [[ "$1" == "ttf-ms-win10" ||
@@ -70,12 +67,14 @@ function build_pkg {
 		return 1
 	fi
 
-	#Get build artifact names from PKGBUILD and build artifacts
-	#Remove duplicates from the list
+	#Remove old packages from build directory
 	source PKGBUILD
 	srcdir="$(pwd)/src"
 	ver=$(pkgver)
 	find . -mindepth 1 -maxdepth 1 -type f \( -name "*.pkg.tar.*" -o -name "*.src.tar.*" \) -not -name "*$ver-$pkgrel*" -delete
+	
+	#Get build artifact names from PKGBUILD and build artifacts
+	#Remove duplicates from the list
 	ipkgs=()
 	for i in ${pkgname[@]}; do
 		#pkgs+=("$i-$pkgver-$pkgrel")
