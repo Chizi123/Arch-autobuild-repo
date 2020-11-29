@@ -64,7 +64,7 @@ function build_pkg {
 	else
 		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) 2>&1
 	fi
-	if [[ $? != 0  || $? == 13 ]]; then
+	if [[ $? != 0  && $? != 13 ]]; then
 		#Register error
 		echo $1 >> $ERRORFILE
 		return 1
@@ -75,7 +75,7 @@ function build_pkg {
 	source PKGBUILD
 	srcdir="$(pwd)/src"
 	ver=$(pkgver)
-	find . -mindepth 1 -maxdepth 1 -type f \( -name "*.pkg.tar.*" -o -name "*.src.tar.*" \) -not -name "*$ver-$pkgrel*"
+	find . -mindepth 1 -maxdepth 1 -type f \( -name "*.pkg.tar.*" -o -name "*.src.tar.*" \) -not -name "*$ver-$pkgrel*" -delete
 	ipkgs=()
 	for i in ${pkgname[@]}; do
 		#pkgs+=("$i-$pkgver-$pkgrel")
