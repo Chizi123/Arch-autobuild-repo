@@ -52,7 +52,7 @@ function build_pkg {
 	fi
 
 	#remove old versions before build
-	rm -f *$1*.tar.*
+#	rm -f *$1*.tar.*
 
 	#make and force rebuild if is git package
 	# Mictosoft fonts have problems with checksums and need a seperate argument
@@ -64,7 +64,7 @@ function build_pkg {
 	else
 		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) 2>&1
 	fi
-	if [[ $? != 0 ]]; then
+	if [[ $? != 0  || $? == 13 ]]; then
 		#Register error
 		echo $1 >> $ERRORFILE
 		return 1
@@ -73,7 +73,9 @@ function build_pkg {
 	#Get build artifact names from PKGBUILD and build artifacts
 	#Remove duplicates from the list
 	source PKGBUILD
-	pkgs=()
+	srcdir="$(pwd)/src"
+	ver=$(pkgver)
+	find . -mindepth 1 -maxdepth 1 -type f \( -name "*.pkg.tar.*" -o -name "*.src.tar.*" \) -not -name "*$ver-$pkgrel*"
 	ipkgs=()
 	for i in ${pkgname[@]}; do
 		#pkgs+=("$i-$pkgver-$pkgrel")
