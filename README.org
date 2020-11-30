@@ -2,36 +2,37 @@
 
 * What is this?
 This is an automatic package building solution for Arch Linux.
-It supports building packages from PKGBUILDs attached to git repositories, such as the AUR.
+It supports building packages from PKGBUILDs attached to git repositories, such as those in the AUR.
 
-Currently it supports package signing and building clean from source (untested).
-It can help to set itself up and generate GPG keys if need be (partially tested).
+Currently it supports package signing and building clean from source.
+It can help set itself up and generate GPG keys if need be (partially tested).
 Notifications can be sent using the sendmail command, which is supported in Postfix and OpenSMTPD.
 
 The chroot generation script is here from an older version of this project and I think its interesting.
+It is unmaintained but should work.
 
 * Features
 - Automatic building from the AUR
-- Automatic rebuilding of git packages
-- Parallel builds to speed up the build process
+- Automatic AUR dependency resolution
+- Automatic rebuilding of version control packages
+- Parallel building to speed up the build process
 - Package signing
 - Clean building
-- Automated set up
 - Supports multiple targets from a single PKGBUILD
 
 * Set-up
-Edit the variables in ~vars.sh~ to suit your repository details.
+Create a copy of ~vars-default.sh~ as ~vars.sh~ and edit to match repository details.
 Have a look at the init function near the bottom of the file to decide if you want to run it.
 If you decide to generate a GPG key, edit the name, comment and email so that it fits you.
 
-You may also want to set ~MAKEFLAGS="-j$(nproc)"~ within the chroot to enable parallel compilation.
-For xz compression, add the ~--threads=0~ option to COMPRESSXZ such that it reads ~COMPRESSXZ=(xz -c -z - --threads=0)~.
-ccache may be useful to decrease the times of git packages, due to the little changes.
+You may also want to set ~MAKEFLAGS="-j$(nproc)"~ within ~makepkg.conf~ to enable parallel compilation.
+It may also be advisable to edit ~makepkg.conf~ to enable parallel compression, see the Arch Wiki for details.
+ccache may be useful to decrease the times of git packages, as there are few changes on each rebuild.
 
 * Usage
-To add a package ~main.sh add [package]~ should be run.
-If a package fails to build, it can be manually rebuilt by reading it.
-I find that removing and reading often solves any problems.
+To add a package: ~main.sh add [package]~.
+If a package fails to build, it can be manually rebuilt by re-adding it.
+I find that removing and reading often solves build problems.
 
 Packages can be removed with ~main.sh remove [package]~.
 This remove it from the repo, build folder and deletes any built versions in the repository directory.
@@ -42,7 +43,7 @@ To allow automatic building, use a cronjob or write a systemd unit, there are ma
 
 * To Dos
 # - Multiple packages from a single PKGBUILD :: Some PKGBUILDs can create many packages at once, currently I am unable to handle this.
-- AUR dependency checking and automatic resolution :: Something like what aurutils does, maybe I can steal it from there
+# - AUR dependency checking and automatic resolution :: Something like what aurutils does, maybe I can steal it from there
 - Error catching for builds which fail. :: Have emailing, but nothing more advanced. Would be nice to have some basic error handling in the script
 # - Create a universal variables file :: Not sure how useful this would be, but could be nice
 # - Build parallelism :: Try and make packages build in parallel, place a lock on the repo file.
