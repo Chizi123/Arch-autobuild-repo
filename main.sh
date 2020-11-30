@@ -70,11 +70,16 @@ function build_pkg {
 	#Remove old packages from build directory
 	source PKGBUILD
 	srcdir="$(pwd)/src"
-	ver=$(pkgver)
+	if grep -q 'pkgver() {' PKGBUILD; then
+		ver=$(pkgver)
+	else
+		ver=$pkgver
+	fi
 	find . -mindepth 1 -maxdepth 1 -type f \( -name "*.pkg.tar.*" -o -name "*.src.tar.*" \) -not -name "*$ver-$pkgrel*" -delete
 	
 	#Get build artifact names from PKGBUILD and build artifacts
 	#Remove duplicates from the list
+	pkgs=()
 	ipkgs=()
 	for i in ${pkgname[@]}; do
 		#pkgs+=("$i-$pkgver-$pkgrel")
@@ -196,6 +201,9 @@ function build_all {
 #Adding build dependencies is
 # Usage: add [package name]
 function add {
+	echo @: $@
+#	read
+	local i j k
 	for i in $@; do
 		cd $BUILDDIR
 		if [[ -z $(git ls-remote https://aur.archlinux.org/$i.git) ]]; then
@@ -204,21 +212,38 @@ function add {
 		fi
 		git clone https://aur.archlinux.org/$i.git
 		cd $i
+		unset depends
+		unset makedepends
+		local makedeps
+		source PKGBUILD
 
 		#check for all build dependencies
-		for i in ${makedepends[@]}; do
-			if pacman -Si $i; then
-				makedepends=${makedepends[@]/$delete}
+		for j in ${makedepends[@]}; do
+			k=$(echo $j | sed 's/[>]=.*//g')
+			if ! pacman -Si $k; then
+				makedeps+=($k)
 			fi &>/dev/null
 		done
-		for i in ${makedepends[@]}; do
-			add $i
+		for j in ${depends[@]}; do
+			k=$(echo $j | sed 's/[>]=.*//g')
+			if ! pacman -Si $k; then
+				makedeps+=($k)
+			fi &>/dev/null
 		done
-		if [[ -n "${makedepends[@]}" ]]; then
+		echo $i: ${makedeps[@]}
+#		read
+		for j in ${makedeps[@]}; do
+			add $j
+#			read
+		done
+		echo $i: ${makedeps[@]}
+#		read
+		if [[ -n "${makedeps[@]}" ]]; then
 			sudo pacman -Sy
 		fi
-
+#read
 		#Actually build wanted package
+		cd $BUILDDIR/$i
 		build_pkg $i -f
 	done
 	return 0
