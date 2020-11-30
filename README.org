@@ -48,3 +48,4 @@ To allow automatic building, use a cronjob or write a systemd unit, there are ma
 # - Create a universal variables file :: Not sure how useful this would be, but could be nice
 # - Build parallelism :: Try and make packages build in parallel, place a lock on the repo file.
 # - Add or remove multiple packages at a time :: Make it less tedious to add packages
+- Keep multiple old packages :: Keep so that packages can be downloaded even if repository isn't upgraded. Also allow downgrading

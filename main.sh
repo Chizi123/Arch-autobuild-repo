@@ -76,7 +76,7 @@ function build_pkg {
 		ver=$pkgver
 	fi
 	find . -mindepth 1 -maxdepth 1 -type f \( -name "*.pkg.tar.*" -o -name "*.src.tar.*" \) -not -name "*$ver-$pkgrel*" -delete
-	
+
 	#Get build artifact names from PKGBUILD and build artifacts
 	#Remove duplicates from the list
 	pkgs=()
@@ -111,7 +111,7 @@ function build_pkg {
 			cp $i $REPODIR/
 			[[ "$SIGN" == "Y" ]] && cp $i.sig $REPODIR/
 		done
-	else 
+	else
 		return;
 	fi
 
@@ -129,9 +129,7 @@ function build_pkg {
 	while true; do
 		# Wait until package is at the top of the queue and add to db
 		if [[ "$(head -n1 $WAITLIST)" == "$1" ]]; then
-		#	for i in ${pkgs[@]}; do
-				repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) ${pkgs[@]}
-		#	done
+		    repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) ${pkgs[@]}
 			while true; do
 				if [[ $(cat $WAITLIST_LCK) == 1 ]]; then
 					sleep 1
@@ -201,8 +199,6 @@ function build_all {
 #Adding build dependencies is
 # Usage: add [package name]
 function add {
-	echo @: $@
-#	read
 	local i j k
 	for i in $@; do
 		cd $BUILDDIR
@@ -217,7 +213,7 @@ function add {
 		local makedeps
 		source PKGBUILD
 
-		#check for all build dependencies
+		#Check for all build dependencies
 		for j in ${makedepends[@]}; do
 			k=$(echo $j | sed 's/[>]=.*//g')
 			if ! pacman -Si $k; then
@@ -230,18 +226,15 @@ function add {
 				makedeps+=($k)
 			fi &>/dev/null
 		done
-		echo $i: ${makedeps[@]}
-#		read
+
+		#Add dependencies and update so overall build can work
 		for j in ${makedeps[@]}; do
 			add $j
-#			read
 		done
-		echo $i: ${makedeps[@]}
-#		read
 		if [[ -n "${makedeps[@]}" ]]; then
 			sudo pacman -Sy
 		fi
-#read
+
 		#Actually build wanted package
 		cd $BUILDDIR/$i
 		build_pkg $i -f
@@ -288,6 +281,7 @@ function check {
 	rm -f $TMPFILE
 }
 
+#Check helper function
 function check_pkg {
 	if [[ -z "$(curl -sI "https://aur.archlinux.org/packages/$2" | head -n1 | grep 200)" ]]; then
 		echo "$2" >> $1
