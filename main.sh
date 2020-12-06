@@ -203,7 +203,7 @@ function add {
 	for i in $@; do
 		cd $BUILDDIR
 		if [[ -z $(git ls-remote https://aur.archlinux.org/$i.git) ]]; then
-			echo "Not a package"
+			echo "Not a package: $i"
 			exit 2
 		fi
 		git clone https://aur.archlinux.org/$i.git
@@ -216,13 +216,13 @@ function add {
 		#Check for all build dependencies
 		for j in ${makedepends[@]}; do
 			k=$(echo $j | sed 's/[>]=.*//g')
-			if ! pacman -Si $k; then
+			if ! (pacman -Si $k || pacman -Qi $k); then
 				makedeps+=($k)
 			fi &>/dev/null
 		done
 		for j in ${depends[@]}; do
 			k=$(echo $j | sed 's/[>]=.*//g')
-			if ! pacman -Si $k; then
+			if ! (pacman -Si $k || pacman -Qi $k); then
 				makedeps+=($k)
 			fi &>/dev/null
 		done
