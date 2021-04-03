@@ -46,6 +46,8 @@ function newold_matching_file
 #Build latest version of a package
 # Usage: build_pkg [package name] [-f force]
 function build_pkg {
+	#first need to reset repo, revert any changes so update can happen
+	git reset --hard
 	#check if PKGBUILD has updated, don't rebuild if hasn't changed
 	if [[ -n $(git pull | grep 'Already up to date.') && -z $(grep 'pkgver() {' PKGBUILD) && -z "$2" ]]; then
 		return 2
