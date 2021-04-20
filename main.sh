@@ -204,7 +204,7 @@ function add {
 	local i j k
 	for i in $@; do
 		cd $BUILDDIR
-		if [[ -z $(git ls-remote https://aur.archlinux.org/$i.git) ]]; then
+		if [ ! -d $i ] && [[ -z $(git ls-remote https://aur.archlinux.org/$i.git) ]]; then
 			echo "Not a package: $i"
 			exit 2
 		fi
