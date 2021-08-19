@@ -339,7 +339,7 @@ function init {
 }
 
 function send_email {
-	curl -s --url "smtp://$EMAIL_HOST" --ssl-reqd \
+	curl -s --url "smtp://$EMAIL_HOST" --ssl \
 		--mail-from "$FROM_EMAIL" \
 		--mail-rcpt "$TO_EMAIL" \
 		--user "$EMAIL_USER" \
