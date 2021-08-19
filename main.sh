@@ -340,9 +340,10 @@ function init {
 
 function send_email {
 	(
-	echo "From: build@localhost"
+	echo "From: $FROM_EMAIL"
 	echo "To: $EMAIL"
 	echo "Subject: Build errors"
+	echo ""
 	echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
 	echo "The errors were: $@"
 	) | sendmail -t

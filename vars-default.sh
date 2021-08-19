@@ -6,6 +6,7 @@ export PKGEXT='.pkg.tar.zst'
 export SRCEXT='.src.tar.bz2'
 export PACKAGER="John Doe <jd@change.me>"
 EMAIL=""
+FROM_EMAIL="$(whoami)@$(localhost)"
 UPDATE=N
 PARALLEL=N
 QUIET=N
