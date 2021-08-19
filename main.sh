@@ -339,14 +339,18 @@ function init {
 }
 
 function send_email {
-	(
-	echo "From: $FROM_EMAIL"
-	echo "To: $EMAIL"
-	echo "Subject: Build errors"
-	echo ""
-	echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
-	echo "The errors were: $@"
-	) | sendmail -t
+	curl -s --url "smtp://$EMAIL_HOST" --ssl-reqd \
+		--mail-from "$FROM_EMAIL" \
+		--mail-rcpt "$TO_EMAIL" \
+		--user "$EMAIL_USER" \
+		-T <(
+			echo "From: $FROM_EMAIL"
+			echo "To: $TO_EMAIL"
+			echo "Subject: Build errors"
+			echo ""
+			echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
+			echo "The errors were: $@"
+		)
 }
 
 case $1 in
