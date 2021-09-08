@@ -364,10 +364,13 @@ case $1 in
 		remove ${@:2};;
 	"check")
 		check;;
+	"test-mail")
+		send_email;;
 	*)
 		echo -e "\033[0;31mInvalid usage\033[0m"
 		echo -e "Usage: $0 init|check|add|remove|build-all"
 		echo -e "\033[0;32minit\033[0m                        - initialise repository for use"
+		echo -e "\033[0;32mtest-mail\033[m                    - test email configuration by sending the default email without a message"
 		echo -e "\033[0;32mcheck\033[0m                       - check if packages have been moved into the official repositories or removed from the AUR"
 		echo -e "\033[0;32madd package ...\033[0m             - add a package to \$BUILDDIR and repository, also used to rebuild failed packages"
 		echo -e "\033[0;32mremove -a | package ...\033[0m     - remove package from \$BUILDDIR and repository, \"-a\" removes packages added to official repos"
@@ -379,7 +382,7 @@ if [[ $1 == "build-all" || $1 == "add" ]]; then
 	if [[ -n $(cat $ERRORFILE) ]]; then
 		ERRORS=$(cat $ERRORFILE | tr '\n' ' ')
 		echo "Errors in packages: $ERRORS"
-		if [[ "$EMAIL" != "" && "$1" == "build-all" ]]; then
+		if [[ "$TO_EMAIL" != "" && "$1" == "build-all" ]]; then
 			send_email $ERRORS
 		fi
 	else
