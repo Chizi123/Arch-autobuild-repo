@@ -351,6 +351,7 @@ function send_email {
 			echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
 			echo "The errors were: $@"
 		)
+	return $?
 }
 
 case $1 in
@@ -365,7 +366,8 @@ case $1 in
 	"check")
 		check;;
 	"test-mail")
-		send_email;;
+		send_email
+		exit $?;;
 	*)
 		echo -e "\033[0;31mInvalid usage\033[0m"
 		echo -e "Usage: $0 init|check|add|remove|build-all"
