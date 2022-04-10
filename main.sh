@@ -285,7 +285,7 @@ function check {
 
 #Check helper function
 function check_pkg {
-	if [[ -z "$(curl -sI "https://aur.archlinux.org/packages/$2" | head -n1 | grep 200)" ]]; then
+	if [[ -z "$(curl -si "https://aur.archlinux.org/packages/$2" | head -n1 | grep 200)" ]]; then
 		echo "$2" >> $1
 	fi
 }
@@ -339,6 +339,23 @@ function init {
 }
 
 function send_email {
+#	message=(echo "From: $FROM_EMAIL"
+#			echo "To: $TO_EMAIL"
+#			echo "Subject: Build errors"
+#			echo ""
+#			echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
+#			echo "The errors were: $@"
+#		)
+	if [ 1 ]; then
+		(
+			echo "From: $FROM_EMAIL"
+			echo "To: $TO_EMAIL"
+			echo "Subject: Build errors"
+			echo ""
+			echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
+			echo "The errors were: $@"
+		) | sendmail -t
+	else 
 	curl -s --url "smtp://$EMAIL_HOST" --ssl \
 		--mail-from "$FROM_EMAIL" \
 		--mail-rcpt "$TO_EMAIL" \
@@ -351,6 +368,7 @@ function send_email {
 			echo "There were build errors for the build of $REPONAME at $(date), please address them soon."
 			echo "The errors were: $@"
 		)
+	fi
 	return $?
 }
 
