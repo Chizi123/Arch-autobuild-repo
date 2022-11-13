@@ -74,6 +74,11 @@ function build_pkg {
 		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) 2>&1
 	fi
 	if [[ $? != 0  && $? != 13 ]]; then
+		if [[ -n $(find . -iname "*cmake")  && "$2" != "-s" ]]; then
+			find ./src -iname "*cmake*" -type f -delete
+			build_pkg "$1" -s
+			return $?
+		fi
 		#Register error
 		echo $1 >> $ERRORFILE
 		return 1
