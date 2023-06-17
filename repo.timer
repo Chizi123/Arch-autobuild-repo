@@ -1,0 +1,8 @@
+[Unit]
+Description=Build repo
+
+[Timer]
+OnCalendar=00/2:00:00
+
+[Install]
+WantedBy=timers.target
