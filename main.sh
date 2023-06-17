@@ -343,6 +343,13 @@ function init {
 	return 0
 }
 
+function remake-repo {
+	cd $REPODIR
+	rm -f $REPONAME.db.*
+	pkgs="$(find . -name '*.pkg.*' -not -name '*.sig')"
+	repo-add $([[ "$SIGN" == "Y" ]] && echo "--sign --key $KEY") $REPODIR/$REPONAME.db.tar.$([ -n "$COMPRESSION" ] || echo $COMPRESSION && echo zst) $pkgs
+}
+
 function send_email {
 #	message=(echo "From: $FROM_EMAIL"
 #			echo "To: $TO_EMAIL"
@@ -388,6 +395,8 @@ case $1 in
 		remove ${@:2};;
 	"check")
 		check;;
+	"remake")
+		remake-repo;;
 	"test-mail")
 		send_email
 		exit $?;;
@@ -400,6 +409,7 @@ case $1 in
 		echo -e "\033[0;32madd package ...\033[0m             - add a package to \$BUILDDIR and repository, also used to rebuild failed packages"
 		echo -e "\033[0;32mremove -a | package ...\033[0m     - remove package from \$BUILDDIR and repository, \"-a\" removes packages added to official repos"
 		echo -e "\033[0;32mbuild-all [-f]\033[0m              - build all packages in \$BUILDDIR, \"-f\" force builds whole repository"
+		echo -e "\033[-;32mremake\033[0m                      - Recreate repo"
 esac
 
 # Error reporting, send email only for build-all as assuming an batch job for that
