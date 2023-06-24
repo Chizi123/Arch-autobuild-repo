@@ -2,10 +2,8 @@
 Description=Build package repository
 
 [Service]
-Type=simple
-ExecStart=su build -c /home/build/Arch-autobuild-repo/main.sh build-all
-Restart=always
-RestartSec=5s
+Type=oneshot
+ExecStart=su build -c "/home/build/Arch-autobuild-repo/main.sh build-all"
 
 [Install]
 WantedBy=default.target
