@@ -70,6 +70,10 @@ function build_pkg {
 		"$1" == "ttf-ms-win8" ||
 		"$1" == "ttf-win7-fonts" ]]; then
 		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) --skipchecksums 2>&1
+	elif [[ "$1" == "icu"* ]]; then
+		echo ***1
+		pause
+		LC_ALL=C makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) 2>&1
 	else
 		makepkg -s --noconfirm $([[ $CLEAN == "Y" ]] && echo "-c") $([[ $SIGN == "Y" ]] && echo "--sign --key $KEY") $([[ "$2" == "-f" ]] && echo -f) 2>&1
 	fi
@@ -106,12 +110,16 @@ function build_pkg {
 
 	#Move package to repodir and add to repo db
 	#Dont change the database if rebuilt the same package at same release and version
-	flag=0
-	for i in ${pkgs[@]}; do
-		if [[ ! -f $REPODIR/$i ]]; then
-			flag=1
-		fi
-	done
+	if [ -z $2 ]; then
+		flag=0
+		for i in ${pkgs[@]}; do
+			if [[ ! -f $REPODIR/$i ]]; then
+				flag=1
+			fi
+		done
+	else
+		flag=1
+	fi
 	if [[ $flag == 1 ]]; then
 		rm -f $REPODIR/*$1*.tar.*
 		for i in ${pkgs[@]}; do
