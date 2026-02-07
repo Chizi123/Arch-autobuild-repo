@@ -314,9 +314,15 @@ def migrate_config(vars_file: Path, output: Path) -> None:
 
 
 @cli.command()
+@click.option("--systemd", is_flag=True, help="Set up systemd service and timer for automated builds")
+@click.option("--gpg", is_flag=True, help="Set up GPG signing for the repository")
 @pass_context
-def init(ctx: Context) -> None:
-    """Initialize repository directories and configuration."""
+def init(ctx: Context, systemd: bool, gpg: bool) -> None:
+    """Initialize repository directories and configuration.
+    
+    This command is idempotent and can be run multiple times to add features
+    like systemd automation or GPG signing.
+    """
     config = ctx.config
 
     # Create directories
@@ -326,8 +332,14 @@ def init(ctx: Context) -> None:
     repo = RepoManager(config)
     repo.ensure_repo_exists()
 
-    console.print(f"[green]✓[/] Repository initialized at {config.repository.path}")
+    console.print(f"[green]✓[/] Repository directory: {config.repository.path}")
     console.print(f"[green]✓[/] Build directory: {config.repository.build_dir}")
+
+    if systemd:
+        _setup_systemd(ctx)
+    
+    if gpg:
+        _setup_gpg(ctx)
 
     # Check pacman.conf
     pacman_conf = Path("/etc/pacman.conf")
@@ -340,6 +352,157 @@ def init(ctx: Context) -> None:
                 f"SigLevel = Optional TrustAll\n"
                 f"Server = file://{config.repository.path}"
             )
+
+
+def _setup_systemd(ctx: Context) -> None:
+    """Helper to set up systemd service and timer."""
+    import subprocess
+    
+    console.print("\n[bold blue]═══ Systemd Setup ═══[/]")
+    
+    interval = click.prompt("How often should builds run? (systemd Calendar spec, e.g., 12h, daily)", default="12h")
+    
+    # Get absolute path to archbuild executable
+    import shutil
+    archbuild_path = shutil.which("archbuild")
+    if not archbuild_path:
+        # Fallback to current sys.executable if running as module or in venv
+        archbuild_path = f"{sys.executable} -m archbuild.cli"
+    
+    user_systemd_dir = Path.home() / ".config" / "systemd" / "user"
+    user_systemd_dir.mkdir(parents=True, exist_ok=True)
+    
+    service_content = f"""[Unit]
+Description=Archbuild - Automatic AUR Package Builder
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart={archbuild_path} build-all
+Environment="PATH={Path.home()}/.local/bin:/usr/bin:/bin"
+"""
+    
+    timer_content = f"""[Unit]
+Description=Timer for Archbuild Automatic Builds
+
+[Timer]
+OnCalendar={interval}
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+"""
+    
+    service_file = user_systemd_dir / "archbuild.service"
+    timer_file = user_systemd_dir / "archbuild.timer"
+    
+    service_file.write_text(service_content)
+    timer_file.write_text(timer_content)
+    
+    try:
+        subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
+        subprocess.run(["systemctl", "--user", "enable", "--now", "archbuild.timer"], check=True)
+        console.print(f"[green]✓[/] Systemd timer enabled (running every {interval})")
+    except subprocess.CalledProcessError as e:
+        console.print(f"[red]✗[/] Failed to enable systemd timer: {e}")
+
+
+def _setup_gpg(ctx: Context) -> None:
+    """Helper to set up GPG signing."""
+    import subprocess
+    
+    console.print("\n[bold blue]═══ GPG Signing Setup ═══[/]")
+    
+    config = ctx.config
+    
+    # Check for existing keys
+    try:
+        result = subprocess.run(
+            ["gpg", "--list-secret-keys", "--keyid-format", "LONG"],
+            capture_output=True, text=True, check=True
+        )
+        keys = []
+        for line in result.stdout.splitlines():
+            if line.startswith("sec"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    key_id = parts[1].split("/")[-1]
+                    keys.append(key_id)
+        
+        if keys:
+            console.print("Found existing GPG keys:")
+            for i, key in enumerate(keys):
+                console.print(f"  [{i}] {key}")
+            
+            choice = click.prompt(
+                "Select a key index, enter a Key ID manually, or type 'new' to generate",
+                default="0"
+            )
+            
+            if choice.lower() == "new":
+                key_id = _generate_gpg_key()
+            elif choice.isdigit() and int(choice) < len(keys):
+                key_id = keys[int(choice)]
+            else:
+                key_id = choice
+        else:
+            if click.confirm("No secret keys found. Generate a new one?"):
+                key_id = _generate_gpg_key()
+            else:
+                key_id = click.prompt("Enter Key ID manually")
+                
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        console.print("[yellow]GPG not found or failed to list keys.[/]")
+        key_id = click.prompt("Enter Key ID manually")
+
+    if key_id:
+        config.signing.enabled = True
+        config.signing.key = key_id
+        save_config(config, ctx.config_path)
+        console.print(f"[green]✓[/] Signing enabled with key: {key_id}")
+        console.print(f"[green]✓[/] Configuration updated: {ctx.config_path}")
+
+
+def _generate_gpg_key() -> str:
+    """Generate a new GPG key and return its ID."""
+    import subprocess
+    import tempfile
+    
+    console.print("Generating new GPG key (this may take a while)...")
+    
+    name = click.prompt("Name for GPG key", default="Archbuild Repo")
+    email = click.prompt("Email for GPG key")
+    
+    batch_content = f"""
+        Key-Type: RSA
+        Key-Length: 4096
+        Subkey-Type: RSA
+        Subkey-Length: 4096
+        Name-Real: {name}
+        Name-Email: {email}
+        Expire-Date: 0
+        %no-protection
+        %commit
+    """
+    
+    with tempfile.NamedTemporaryFile(mode="w") as f:
+        f.write(batch_content)
+        f.flush()
+        try:
+            subprocess.run(["gpg", "--batch", "--generate-key", f.name], check=True)
+            
+            # Get the ID of the key we just created
+            result = subprocess.run(
+                ["gpg", "--list-secret-keys", "--keyid-format", "LONG", email],
+                capture_output=True, text=True, check=True
+            )
+            for line in result.stdout.splitlines():
+                if line.startswith("sec"):
+                    return line.split()[1].split("/")[-1]
+        except subprocess.CalledProcessError as e:
+            console.print(f"[red]✗[/] Failed to generate GPG key: {e}")
+            return ""
+    return ""
 
 
 def _print_results(results: list[Any]) -> None:
