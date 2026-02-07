@@ -158,9 +158,13 @@ class Builder:
 
     async def __aenter__(self) -> "Builder":
         """Async context manager entry."""
-        max_workers = self.config.building.max_workers if self.config.building.parallel else 1
-        self._executor = ProcessPoolExecutor(max_workers=max_workers)
-        logger.info(f"Builder initialized with {max_workers} workers")
+        if self.config.building.parallel:
+            max_workers = self.config.building.max_workers
+            self._executor = ProcessPoolExecutor(max_workers=max_workers)
+            logger.info(f"Builder initialized with {max_workers} workers (parallel)")
+        else:
+            self._executor = None
+            logger.info("Builder initialized (sequential)")
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

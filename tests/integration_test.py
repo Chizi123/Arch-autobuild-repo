@@ -47,9 +47,10 @@ FALLBACK_PACKAGES = [
 class IntegrationTest:
     """Integration test runner."""
 
-    def __init__(self, keep_temp: bool = False, use_cli: bool = False):
+    def __init__(self, keep_temp: bool = False, use_cli: bool = False, use_binary: bool = False):
         self.keep_temp = keep_temp
         self.use_cli = use_cli
+        self.use_binary = use_binary
         self.temp_dir: Path | None = None
         self.config: Config | None = None
         self.config_path: Path | None = None
@@ -62,10 +63,19 @@ class IntegrationTest:
             raise RuntimeError("Config path not set")
 
         env = os.environ.copy()
-        # Add src to PYTHONPATH so the CLI can find the package
-        env["PYTHONPATH"] = str(Path(__file__).parent.parent / "src")
         
-        cmd = [sys.executable, "-m", "archbuild.cli", "-c", str(self.config_path), command] + list(args)
+        if self.use_binary:
+            binary_path = Path(__file__).parent.parent / "dist" / "archbuild-bin"
+            if not binary_path.exists():
+                raise RuntimeError(f"Binary not found at {binary_path}. Run scripts/build_binary.py first.")
+            
+            cmd = [str(binary_path), "-c", str(self.config_path), command] + list(args)
+            # No PYTHONPATH needed for the standalone binary
+        else:
+            # Add src to PYTHONPATH so the CLI can find the package
+            env["PYTHONPATH"] = str(Path(__file__).parent.parent / "src")
+            cmd = [sys.executable, "-m", "archbuild.cli", "-c", str(self.config_path), command] + list(args)
+            
         return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     def setup(self) -> None:
@@ -345,7 +355,12 @@ VCSCLIENTS=('git::git'
 
     async def run(self) -> bool:
         """Run all integration tests."""
-        mode_str = " (CLI Mode)" if self.use_cli else " (Python Mode)"
+        mode_str = " (Python Mode)"
+        if self.use_binary:
+            mode_str = " (Binary Mode)"
+        elif self.use_cli:
+            mode_str = " (CLI Mode)"
+            
         console.print("[bold magenta]╔════════════════════════════════════════════╗[/]")
         console.print(f"[bold magenta]║     Archbuild Integration Test Suite{mode_str:<10}║[/]")
         console.print("[bold magenta]╚════════════════════════════════════════════╝[/]")
@@ -401,6 +416,10 @@ async def main() -> int:
     """Main entry point."""
     keep_temp = "--keep-temp" in sys.argv
     use_cli = "--use-cli" in sys.argv
+    use_binary = "--use-binary" in sys.argv
+
+    if use_binary:
+        use_cli = True  # Binary mode is a sub-mode of CLI mode
 
     # Check if running on Arch Linux
     if not Path("/etc/arch-release").exists():
@@ -414,7 +433,7 @@ async def main() -> int:
             console.print(f"[red]Required tool not found: {tool}[/]")
             return 1
 
-    test = IntegrationTest(keep_temp=keep_temp, use_cli=use_cli)
+    test = IntegrationTest(keep_temp=keep_temp, use_cli=use_cli, use_binary=use_binary)
     success = await test.run()
 
     return 0 if success else 1

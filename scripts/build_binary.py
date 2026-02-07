@@ -6,6 +6,7 @@ Script to build a standalone executable for archbuild using PyInstaller.
 import subprocess
 import sys
 import os
+import shutil
 from pathlib import Path
 
 def build():
@@ -27,13 +28,19 @@ def build():
     entry_script.write_text("from archbuild.cli import main\nif __name__ == '__main__':\n    main()\n")
 
     # PyInstaller command
-    cmd = [
-        "pyinstaller",
+    pyinstaller_exe = shutil.which("pyinstaller")
+    if pyinstaller_exe:
+        cmd = [pyinstaller_exe]
+    else:
+        cmd = [sys.executable, "-m", "PyInstaller"]
+
+    cmd += [
         "--onefile",
         "--name", "archbuild-bin",
         "--paths", str(src),
         "--clean",
         "--collect-all", "archbuild",
+        "--collect-all", "rich",
         str(entry_script)
     ]
     
