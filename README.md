@@ -16,13 +16,30 @@ A modern, sustainable AUR package building and repository management tool for Ar
 
 ## Installation
 
+### From Source
 ```bash
-# From source
-pip install -e .
+# Clone the repository
+git clone https://github.com/joelgrun/archbuild
+cd archbuild
 
-# Or with development dependencies
-pip install -e ".[dev]"
+# Set up virtual environment and install
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
 ```
+
+### Native Arch Linux Package
+To build and install as a native system package:
+```bash
+makepkg -si
+```
+
+### Standalone Binary
+To create a standalone executable that doesn't require Python:
+```bash
+python scripts/build_binary.py
+```
+The binary will be available at `dist/archbuild-bin`.
 
 ## Quick Start
 
