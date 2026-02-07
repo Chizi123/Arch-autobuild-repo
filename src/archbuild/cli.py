@@ -22,7 +22,7 @@ console = Console()
 
 def run_async(coro: Any) -> Any:
     """Run async function in sync context."""
-    return asyncio.get_event_loop().run_until_complete(coro)
+    return asyncio.run(coro)
 
 
 class Context:

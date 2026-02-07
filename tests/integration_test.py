@@ -47,12 +47,26 @@ FALLBACK_PACKAGES = [
 class IntegrationTest:
     """Integration test runner."""
 
-    def __init__(self, keep_temp: bool = False):
+    def __init__(self, keep_temp: bool = False, use_cli: bool = False):
         self.keep_temp = keep_temp
+        self.use_cli = use_cli
         self.temp_dir: Path | None = None
         self.config: Config | None = None
+        self.config_path: Path | None = None
         self.passed = 0
         self.failed = 0
+
+    def _run_cli(self, command: str, *args: str) -> subprocess.CompletedProcess:
+        """Run archbuild CLI command via subprocess."""
+        if not self.config_path:
+            raise RuntimeError("Config path not set")
+
+        env = os.environ.copy()
+        # Add src to PYTHONPATH so the CLI can find the package
+        env["PYTHONPATH"] = str(Path(__file__).parent.parent / "src")
+        
+        cmd = [sys.executable, "-m", "archbuild.cli", "-c", str(self.config_path), command] + list(args)
+        return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     def setup(self) -> None:
         """Set up temporary test environment."""
@@ -122,6 +136,11 @@ VCSCLIENTS=('git::git'
             },
         )
 
+        # Save config to disk for CLI to use
+        from archbuild.config import save_config
+        self.config_path = self.temp_dir / "config.yaml"
+        save_config(self.config, self.config_path)
+
         setup_logging(self.config.log_level)
         console.print("  [green]✓[/] Configuration created")
 
@@ -149,8 +168,12 @@ VCSCLIENTS=('git::git'
         """Test repository initialization."""
         console.print("\n[bold blue]═══ Test: Repository Initialization ═══[/]")
 
-        repo = RepoManager(self.config)
-        repo.ensure_repo_exists()
+        if self.use_cli:
+            result = self._run_cli("init")
+            self.check(result.returncode == 0, "CLI: init command success")
+        else:
+            repo = RepoManager(self.config)
+            repo.ensure_repo_exists()
 
         # Check directories exist
         self.check(
@@ -195,23 +218,41 @@ VCSCLIENTS=('git::git'
 
         results: dict[str, BuildStatus] = {}
 
-        async with AURClient() as aur:
-            async with Builder(self.config, aur) as builder:
-                for pkg_name in packages:
-                    console.print(f"\n  Building {pkg_name}...")
-                    result = await builder.build_package(pkg_name, force=True)
-                    results[pkg_name] = result.status
+        if self.use_cli:
+            for pkg_name in packages:
+                console.print(f"\n  Building {pkg_name} via CLI...")
+                result = self._run_cli("build", pkg_name, "-f")
+                
+                if result.returncode == 0:
+                    results[pkg_name] = BuildStatus.SUCCESS
+                    self.check(True, f"CLI: Built {pkg_name} successfully")
+                    
+                    # Check for created artifacts
+                    pkg_dir = self.config.repository.build_dir / pkg_name
+                    artifacts = list(pkg_dir.glob("*.pkg.tar.*"))
+                    artifacts = [a for a in artifacts if not a.name.endswith(".sig")]
+                    self.check(len(artifacts) > 0, f"  Created {len(artifacts)} artifact(s)")
+                else:
+                    results[pkg_name] = BuildStatus.FAILED
+                    self.check(False, f"CLI: Failed to build {pkg_name}\nError: {result.stderr}")
+        else:
+            async with AURClient() as aur:
+                async with Builder(self.config, aur) as builder:
+                    for pkg_name in packages:
+                        console.print(f"\n  Building {pkg_name}...")
+                        result = await builder.build_package(pkg_name, force=True)
+                        results[pkg_name] = result.status
 
-                    if result.status == BuildStatus.SUCCESS:
-                        self.check(True, f"Built {pkg_name} successfully ({result.duration:.1f}s)")
-                        self.check(
-                            len(result.artifacts) > 0,
-                            f"  Created {len(result.artifacts)} artifact(s)"
-                        )
-                        for artifact in result.artifacts:
-                            console.print(f"    → {artifact.name}")
-                    else:
-                        self.check(False, f"Failed to build {pkg_name}: {result.error}")
+                        if result.status == BuildStatus.SUCCESS:
+                            self.check(True, f"Built {pkg_name} successfully ({result.duration:.1f}s)")
+                            self.check(
+                                len(result.artifacts) > 0,
+                                f"  Created {len(result.artifacts)} artifact(s)"
+                            )
+                            for artifact in result.artifacts:
+                                console.print(f"    → {artifact.name}")
+                        else:
+                            self.check(False, f"Failed to build {pkg_name}: {result.error}")
 
         return results
 
@@ -219,32 +260,37 @@ VCSCLIENTS=('git::git'
         """Test adding packages to repository."""
         console.print("\n[bold blue]═══ Test: Repository Management ═══[/]")
 
-        repo = RepoManager(self.config)
+        if self.use_cli:
+            # In CLI mode, 'add' or 'build' already adds to repo, but we can test 'remake'
+            result = self._run_cli("remake")
+            self.check(result.returncode == 0, "CLI: remake command success")
+        else:
+            repo = RepoManager(self.config)
+            async with AURClient() as aur:
+                async with Builder(self.config, aur) as builder:
+                    for pkg_name in packages:
+                        # Get the build result with artifacts
+                        pkg_dir = self.config.repository.build_dir / pkg_name
+                        if not pkg_dir.exists():
+                            continue
 
-        async with AURClient() as aur:
-            async with Builder(self.config, aur) as builder:
-                for pkg_name in packages:
-                    # Get the build result with artifacts
-                    pkg_dir = self.config.repository.build_dir / pkg_name
-                    if not pkg_dir.exists():
-                        continue
+                        # Find artifacts
+                        artifacts = list(pkg_dir.glob("*.pkg.tar.*"))
+                        artifacts = [a for a in artifacts if not a.name.endswith(".sig")]
 
-                    # Find artifacts
-                    artifacts = list(pkg_dir.glob("*.pkg.tar.*"))
-                    artifacts = [a for a in artifacts if not a.name.endswith(".sig")]
-
-                    if artifacts:
-                        # Create a mock build result for add_packages
-                        from archbuild.builder import BuildResult
-                        mock_result = BuildResult(
-                            package=pkg_name,
-                            status=BuildStatus.SUCCESS,
-                            artifacts=artifacts,
-                        )
-                        success = repo.add_packages(mock_result)
-                        self.check(success, f"Added {pkg_name} to repository")
+                        if artifacts:
+                            # Create a mock build result for add_packages
+                            from archbuild.builder import BuildResult
+                            mock_result = BuildResult(
+                                package=pkg_name,
+                                status=BuildStatus.SUCCESS,
+                                artifacts=artifacts,
+                            )
+                            success = repo.add_packages(mock_result)
+                            self.check(success, f"Added {pkg_name} to repository")
 
         # List packages in repo
+        repo = RepoManager(self.config)
         pkg_list = repo.list_packages()
         self.check(len(pkg_list) > 0, f"Repository contains {len(pkg_list)} package(s)")
 
@@ -254,6 +300,10 @@ VCSCLIENTS=('git::git'
     async def test_repo_database(self) -> None:
         """Test repository database integrity."""
         console.print("\n[bold blue]═══ Test: Database Integrity ═══[/]")
+
+        if self.use_cli:
+            # We already tested remake, let's just check the DB file
+            pass
 
         db_path = self.config.repository.path / f"{self.config.repository.name}.db.tar.zst"
         
@@ -285,15 +335,19 @@ VCSCLIENTS=('git::git'
         """Test package cleanup functionality."""
         console.print("\n[bold blue]═══ Test: Cleanup ═══[/]")
 
-        repo = RepoManager(self.config)
-        removed = repo.cleanup()
-        
-        self.check(True, f"Cleanup removed {removed} old version(s)")
+        if self.use_cli:
+            result = self._run_cli("cleanup")
+            self.check(result.returncode == 0, "CLI: cleanup command success")
+        else:
+            repo = RepoManager(self.config)
+            removed = repo.cleanup()
+            self.check(True, f"Cleanup removed {removed} old version(s)")
 
     async def run(self) -> bool:
         """Run all integration tests."""
+        mode_str = " (CLI Mode)" if self.use_cli else " (Python Mode)"
         console.print("[bold magenta]╔════════════════════════════════════════════╗[/]")
-        console.print("[bold magenta]║     Archbuild Integration Test Suite       ║[/]")
+        console.print(f"[bold magenta]║     Archbuild Integration Test Suite{mode_str:<10}║[/]")
         console.print("[bold magenta]╚════════════════════════════════════════════╝[/]")
 
         try:
@@ -346,6 +400,7 @@ VCSCLIENTS=('git::git'
 async def main() -> int:
     """Main entry point."""
     keep_temp = "--keep-temp" in sys.argv
+    use_cli = "--use-cli" in sys.argv
 
     # Check if running on Arch Linux
     if not Path("/etc/arch-release").exists():
@@ -359,7 +414,7 @@ async def main() -> int:
             console.print(f"[red]Required tool not found: {tool}[/]")
             return 1
 
-    test = IntegrationTest(keep_temp=keep_temp)
+    test = IntegrationTest(keep_temp=keep_temp, use_cli=use_cli)
     success = await test.run()
 
     return 0 if success else 1
