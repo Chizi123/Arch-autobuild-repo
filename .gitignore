@@ -1,3 +1,32 @@
+# Legacy
 chroot
-repo
 vars.sh
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+ENV/
+
+# Distribution / Build
+dist/
+local_build/
+build/
+*.egg-info/
+
+# Tests / Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Project Specific
+config.yaml
+repo/
+waitlist*
+errorfile
+logs/

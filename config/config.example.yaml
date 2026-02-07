@@ -1,0 +1,87 @@
+# Archbuild Configuration
+# Copy this file to config.yaml and edit as needed
+
+repository:
+  # Repository name (used in pacman.conf)
+  name: "myrepo"
+  # Directory containing the repository packages and database
+  path: "/repo/x86_64"
+  # Directory for cloning and building packages
+  build_dir: "/repo/build"
+  # Compression format for packages (zst, xz, gz)
+  compression: "zst"
+
+building:
+  # Enable parallel builds
+  parallel: true
+  # Maximum number of concurrent build workers
+  max_workers: 4
+  # Clean build directory after successful build
+  clean: true
+  # Update system before building (sudo pacman -Syu)
+  update_system: false
+  # Number of retry attempts on build failure
+  retry_attempts: 3
+  # Base delay between retries in seconds (exponential backoff)
+  retry_delay: 5
+
+signing:
+  # Enable package signing
+  enabled: false
+  # GPG key ID for signing (leave empty to use default key)
+  key: ""
+
+retention:
+  # Number of old package versions to keep
+  keep_versions: 3
+  # Automatically clean old versions after build
+  cleanup_on_build: true
+
+notifications:
+  email:
+    # Enable email notifications on build failures
+    enabled: false
+    # Recipient email address
+    to: ""
+    # Sender email address
+    from: "archbuild@localhost"
+    # SMTP server settings
+    smtp_host: "localhost"
+    smtp_port: 25
+    use_tls: false
+    username: ""
+    password: ""
+  
+  # Webhook notifications (Discord, Slack, ntfy, etc.)
+  # Uncomment and configure as needed
+  webhooks: []
+  # Example Discord webhook:
+  # webhooks:
+  #   - enabled: true
+  #     type: "discord"
+  #     url: "https://discord.com/api/webhooks/..."
+  # 
+  # Example ntfy webhook:
+  # webhooks:
+  #   - enabled: true
+  #     type: "ntfy"
+  #     url: "https://ntfy.sh/your-topic"
+
+# Per-package build overrides
+# Use this for packages that need special handling
+package_overrides: {}
+  # Example: Microsoft fonts need checksum skipping
+  # ttf-ms-win10:
+  #   skip_checksums: true
+  # 
+  # Example: Custom environment variables
+  # some-package:
+  #   env:
+  #     LC_ALL: "C"
+  #   extra_args:
+  #     - "--nocheck"
+
+# Logging configuration
+log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+# Uncomment to also log to file:
+# log_file: "/var/log/archbuild.log"
