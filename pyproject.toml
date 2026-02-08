@@ -41,7 +41,7 @@ dev = [
 ]
 
 [project.scripts]
-archbuild = "archbuild.cli:main"
+archrepobuild = "archbuild.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/archbuild"]

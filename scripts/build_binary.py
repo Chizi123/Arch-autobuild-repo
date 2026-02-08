@@ -36,7 +36,7 @@ def build():
 
     cmd += [
         "--onefile",
-        "--name", "archbuild-bin",
+        "--name", "archrepobuild",
         "--paths", str(src),
         "--clean",
         "--collect-all", "archbuild",
@@ -48,7 +48,7 @@ def build():
     try:
         result = subprocess.run(cmd, cwd=root)
         if result.returncode == 0:
-            print("\nSuccessfully built executable: dist/archbuild-bin")
+            print("\nSuccessfully built executable: dist/archrepobuild")
         else:
             print("\nBuild failed!")
             sys.exit(result.returncode)

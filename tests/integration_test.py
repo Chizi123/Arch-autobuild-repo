@@ -65,7 +65,7 @@ class IntegrationTest:
         env = os.environ.copy()
         
         if self.use_binary:
-            binary_path = Path(__file__).parent.parent / "dist" / "archbuild-bin"
+            binary_path = Path(__file__).parent.parent / "dist" / "archrepobuild"
             if not binary_path.exists():
                 raise RuntimeError(f"Binary not found at {binary_path}. Run scripts/build_binary.py first.")
             
