@@ -78,7 +78,7 @@ class DependencyResolver:
         """Refresh cache of packages available from official repos."""
         try:
             result = subprocess.run(
-                ["pacman", "-Ssq"],
+                ["pacman", "-Slq"],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -270,13 +270,27 @@ class DependencyResolver:
         Raises:
             ValueError: If package not found or circular dependency
         """
-        logger.info(f"Resolving dependencies for: {', '.join(package_names)}")
+        # Filter out packages already in official repos or installed
+        aur_package_names = []
+        for name in package_names:
+            if self.is_in_official_repos(name):
+                logger.info(f"Package {name} found in official repositories, skipping AUR lookup")
+                continue
+            if self.is_installed(name):
+                logger.info(f"Package {name} is already installed, skipping AUR lookup")
+                continue
+            aur_package_names.append(name)
+
+        if not aur_package_names:
+            return BuildOrder()
+
+        logger.info(f"Resolving dependencies for: {', '.join(aur_package_names)}")
 
         # Fetch requested packages
-        packages_list = await self.aur_client.get_packages(package_names)
-        if len(packages_list) != len(package_names):
+        packages_list = await self.aur_client.get_packages(aur_package_names)
+        if len(packages_list) != len(aur_package_names):
             found = {p.name for p in packages_list}
-            missing = set(package_names) - found
+            missing = set(aur_package_names) - found
             raise ValueError(f"Packages not found in AUR: {missing}")
 
         # Build dependency graph

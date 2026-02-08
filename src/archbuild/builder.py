@@ -421,6 +421,13 @@ class Builder:
         # Resolve dependencies
         build_order = await self.resolver.resolve([package])
 
+        if package not in build_order.packages:
+            logger.info(f"Package {package} does not need to be built")
+            return BuildResult(
+                package=package,
+                status=BuildStatus.SKIPPED,
+            )
+
         # Build dependencies first
         results: list[BuildResult] = []
         for dep in build_order:
