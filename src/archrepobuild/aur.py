@@ -8,7 +8,7 @@ from typing import Any
 
 import aiohttp
 
-from archbuild.logging import get_logger
+from archrepobuild.logging import get_logger
 
 logger = get_logger("aur")
 

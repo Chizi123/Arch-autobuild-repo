@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "archbuild"
+name = "archrepobuild"
 version = "2.0.0"
 description = "Automatic AUR package building and repository management for Arch Linux"
 readme = "README.md"
@@ -41,10 +41,10 @@ dev = [
 ]
 
 [project.scripts]
-archrepobuild = "archbuild.cli:main"
+archrepobuild = "archrepobuild.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/archbuild"]
+packages = ["src/archrepobuild"]
 
 [tool.ruff]
 target-version = "py311"

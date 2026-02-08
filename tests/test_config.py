@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from archbuild.config import (
+from archrepobuild.config import (
     Config,
     load_config,
     migrate_vars_sh,

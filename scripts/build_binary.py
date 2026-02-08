@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to build a standalone executable for archbuild using PyInstaller.
+Script to build a standalone executable for archrepobuild using PyInstaller.
 """
 
 import subprocess
@@ -24,8 +24,8 @@ def build():
     src = root / "src"
     
     # Create a temporary entry script
-    entry_script = root / "archbuild_entry.py"
-    entry_script.write_text("from archbuild.cli import main\nif __name__ == '__main__':\n    main()\n")
+    entry_script = root / "archrepobuild_entry.py"
+    entry_script.write_text("from archrepobuild.cli import main\nif __name__ == '__main__':\n    main()\n")
 
     # PyInstaller command
     pyinstaller_exe = shutil.which("pyinstaller")
@@ -39,7 +39,7 @@ def build():
         "--name", "archrepobuild",
         "--paths", str(src),
         "--clean",
-        "--collect-all", "archbuild",
+        "--collect-all", "archrepobuild",
         "--collect-all", "rich",
         str(entry_script)
     ]

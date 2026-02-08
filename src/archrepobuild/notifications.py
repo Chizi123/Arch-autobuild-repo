@@ -12,9 +12,9 @@ from typing import Any
 
 import aiohttp
 
-from archbuild.builder import BuildResult, BuildStatus
-from archbuild.config import Config, EmailConfig, WebhookConfig
-from archbuild.logging import get_logger
+from archrepobuild.builder import BuildResult, BuildStatus
+from archrepobuild.config import Config, EmailConfig, WebhookConfig
+from archrepobuild.logging import get_logger
 
 logger = get_logger("notifications")
 
@@ -120,7 +120,7 @@ class EmailBackend(NotificationBackend):
 
         try:
             msg = MIMEMultipart()
-            msg["From"] = self.config.from_addr or f"archbuild@localhost"
+            msg["From"] = self.config.from_addr or f"archrepobuild@localhost"
             msg["To"] = self.config.to
             msg["Subject"] = f"Build Errors - {config.repository.name}"
 

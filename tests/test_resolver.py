@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
-from archbuild.resolver import DependencyResolver, Dependency, DependencyType, BuildOrder
+from archrepobuild.resolver import DependencyResolver, Dependency, DependencyType, BuildOrder
 
 
 class TestDependency:
@@ -118,7 +118,7 @@ class TestDependencyResolver:
         cycles = resolver.detect_cycles(graph)
         assert len(cycles) > 0
 
-    @patch("archbuild.resolver.subprocess.run")
+    @patch("archrepobuild.resolver.subprocess.run")
     def test_is_in_official_repos(self, mock_run, mock_aur_client):
         """Test checking official repos."""
         mock_run.return_value.returncode = 0

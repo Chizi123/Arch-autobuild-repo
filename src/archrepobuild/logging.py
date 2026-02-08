@@ -47,7 +47,7 @@ def setup_logging(
         handlers=handlers,
     )
 
-    return logging.getLogger("archbuild")
+    return logging.getLogger("archrepobuild")
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -59,4 +59,4 @@ def get_logger(name: str) -> logging.Logger:
     Returns:
         Logger instance
     """
-    return logging.getLogger(f"archbuild.{name}")
+    return logging.getLogger(f"archrepobuild.{name}")

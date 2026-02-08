@@ -12,10 +12,10 @@ from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
-from archbuild.aur import AURClient
-from archbuild.config import Config, PackageOverride
-from archbuild.logging import get_logger
-from archbuild.resolver import DependencyResolver
+from archrepobuild.aur import AURClient
+from archrepobuild.config import Config, PackageOverride
+from archrepobuild.logging import get_logger
+from archrepobuild.resolver import DependencyResolver
 
 logger = get_logger("builder")
 

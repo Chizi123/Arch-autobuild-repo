@@ -19,8 +19,8 @@ A modern, sustainable AUR package building and repository management tool for Ar
 ### From Source
 ```bash
 # Clone the repository
-git clone https://github.com/joelgrun/archbuild
-cd archbuild
+git clone https://github.com/joelgrun/archrepobuild
+cd archrepobuild
 
 # Set up virtual environment and install
 python -m venv .venv
@@ -39,7 +39,7 @@ To create a standalone executable that doesn't require Python:
 ```bash
 python scripts/build_binary.py
 ```
-The binary will be available at `dist/archbuild-bin`.
+The binary will be available at `dist/archrepobuild-bin`.
 
 ## Quick Start
 
@@ -51,22 +51,22 @@ The binary will be available at `dist/archbuild-bin`.
 
 2. **Initialize repository**:
    ```bash
-   archbuild -c config.yaml init
+   archrepobuild -c config.yaml init
    ```
 
 3. **Add packages**:
    ```bash
-   archbuild add yay paru
+   archrepobuild add yay paru
    ```
 
 4. **Build all packages**:
    ```bash
-   archbuild build-all
+   archrepobuild build-all
    ```
 
 5. **Build a specific package**:
    ```bash
-   archbuild build <package>
+   archrepobuild build <package>
    ```
 
 ## Commands
@@ -112,26 +112,26 @@ notifications:
 ## Migration from Bash Version
 
 ```bash
-archbuild migrate-config vars.sh -o config.yaml
+archrepobuild migrate-config vars.sh -o config.yaml
 ```
 
 ## Systemd Timer
 
-Create `/etc/systemd/system/archbuild.service`:
+Create `/etc/systemd/system/archrepobuild.service`:
 ```ini
 [Unit]
 Description=Build AUR packages
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/archbuild -c /etc/archbuild/config.yaml build-all
+ExecStart=/usr/bin/archrepobuild -c /etc/archrepobuild/config.yaml build-all
 User=builduser
 ```
 
-Create `/etc/systemd/system/archbuild.timer`:
+Create `/etc/systemd/system/archrepobuild.timer`:
 ```ini
 [Unit]
-Description=Run archbuild daily
+Description=Run archrepobuild daily
 
 [Timer]
 OnCalendar=daily

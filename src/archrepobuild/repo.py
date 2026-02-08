@@ -7,9 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from archbuild.builder import BuildResult, BuildStatus, FileLock
-from archbuild.config import Config
-from archbuild.logging import get_logger
+from archrepobuild.builder import BuildResult, BuildStatus, FileLock
+from archrepobuild.config import Config
+from archrepobuild.logging import get_logger
 
 logger = get_logger("repo")
 

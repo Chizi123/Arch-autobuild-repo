@@ -44,7 +44,7 @@ notifications:
     # Recipient email address
     to: ""
     # Sender email address
-    from: "archbuild@localhost"
+    from: "archrepobuild@localhost"
     # SMTP server settings
     smtp_host: "localhost"
     smtp_port: 25
@@ -84,4 +84,4 @@ package_overrides: {}
 # Logging configuration
 log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR, CRITICAL
 # Uncomment to also log to file:
-# log_file: "/var/log/archbuild.log"
+# log_file: "/var/log/archrepobuild.log"

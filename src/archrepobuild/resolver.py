@@ -5,8 +5,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 
-from archbuild.aur import AURClient, Package
-from archbuild.logging import get_logger
+from archrepobuild.aur import AURClient, Package
+from archrepobuild.logging import get_logger
 
 logger = get_logger("resolver")
 

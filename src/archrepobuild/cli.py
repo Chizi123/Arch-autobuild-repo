@@ -9,13 +9,13 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from archbuild import __version__
-from archbuild.aur import AURClient
-from archbuild.builder import Builder, BuildStatus
-from archbuild.config import Config, load_config, migrate_vars_sh, save_config
-from archbuild.logging import console as log_console, setup_logging
-from archbuild.notifications import NotificationManager
-from archbuild.repo import RepoManager
+from archrepobuild import __version__
+from archrepobuild.aur import AURClient
+from archrepobuild.builder import Builder, BuildStatus
+from archrepobuild.config import Config, load_config, migrate_vars_sh, save_config
+from archrepobuild.logging import console as log_console, setup_logging
+from archrepobuild.notifications import NotificationManager
+from archrepobuild.repo import RepoManager
 
 console = Console()
 
@@ -50,7 +50,7 @@ pass_context = click.make_pass_decorator(Context)
     default=Path("config.yaml"),
     help="Path to configuration file",
 )
-@click.version_option(__version__, prog_name="archbuild")
+@click.version_option(__version__, prog_name="archrepobuild")
 @click.pass_context
 def cli(ctx: click.Context, config: Path) -> None:
     """Archbuild - Automatic AUR package building and repository management.
@@ -161,7 +161,7 @@ def remove(ctx: Context, packages: tuple[str, ...], all_official: bool) -> None:
 
                 if all_official:
                     # Find packages now in official repos
-                    from archbuild.resolver import DependencyResolver
+                    from archrepobuild.resolver import DependencyResolver
                     resolver = DependencyResolver(aur)
 
                     for pkg in repo.list_packages():
@@ -186,7 +186,7 @@ def check(ctx: Context) -> None:
 
     async def _check() -> None:
         async with AURClient() as aur:
-            from archbuild.resolver import DependencyResolver
+            from archrepobuild.resolver import DependencyResolver
             resolver = DependencyResolver(aur)
             repo = RepoManager(config)
 
@@ -364,12 +364,12 @@ def _setup_systemd(ctx: Context) -> None:
     
     interval = click.prompt("How often should builds run? (systemd Calendar spec, e.g., 12h, daily)", default="12h")
     
-    # Get absolute path to archbuild executable
+    # Get absolute path to archrepobuild executable
     import shutil
-    archbuild_path = shutil.which("archbuild")
-    if not archbuild_path:
+    archrepobuild_path = shutil.which("archrepobuild")
+    if not archrepobuild_path:
         # Fallback to current sys.executable if running as module or in venv
-        archbuild_path = f"{sys.executable} -m archbuild.cli"
+        archrepobuild_path = f"{sys.executable} -m archrepobuild.cli"
     
     user_systemd_dir = Path.home() / ".config" / "systemd" / "user"
     user_systemd_dir.mkdir(parents=True, exist_ok=True)
@@ -380,7 +380,7 @@ After=network.target
 
 [Service]
 Type=oneshot
-ExecStart={archbuild_path} build-all
+ExecStart={archrepobuild_path} build-all
 Environment="PATH={Path.home()}/.local/bin:/usr/bin:/bin"
 """
     
@@ -395,15 +395,15 @@ Persistent=true
 WantedBy=timers.target
 """
     
-    service_file = user_systemd_dir / "archbuild.service"
-    timer_file = user_systemd_dir / "archbuild.timer"
+    service_file = user_systemd_dir / "archrepobuild.service"
+    timer_file = user_systemd_dir / "archrepobuild.timer"
     
     service_file.write_text(service_content)
     timer_file.write_text(timer_content)
     
     try:
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True)
-        subprocess.run(["systemctl", "--user", "enable", "--now", "archbuild.timer"], check=True)
+        subprocess.run(["systemctl", "--user", "enable", "--now", "archrepobuild.timer"], check=True)
         console.print(f"[green]✓[/] Systemd timer enabled (running every {interval})")
     except subprocess.CalledProcessError as e:
         console.print(f"[red]✗[/] Failed to enable systemd timer: {e}")

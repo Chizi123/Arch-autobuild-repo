@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Integration test script for archbuild.
+Integration test script for archrepobuild.
 
 This script creates a temporary repository, initializes it with a basic config,
 adds test packages, and verifies they build and are added correctly.
@@ -23,11 +23,11 @@ from pathlib import Path
 # Add src to path for development
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from archbuild.aur import AURClient
-from archbuild.builder import Builder, BuildStatus
-from archbuild.config import Config, RepositoryConfig, BuildingConfig, SigningConfig, PackageOverride
-from archbuild.logging import setup_logging, console
-from archbuild.repo import RepoManager
+from archrepobuild.aur import AURClient
+from archrepobuild.builder import Builder, BuildStatus
+from archrepobuild.config import Config, RepositoryConfig, BuildingConfig, SigningConfig, PackageOverride
+from archrepobuild.logging import setup_logging, console
+from archrepobuild.repo import RepoManager
 
 
 # Test packages - real packages that exist in the AUR
@@ -58,7 +58,7 @@ class IntegrationTest:
         self.failed = 0
 
     def _run_cli(self, command: str, *args: str) -> subprocess.CompletedProcess:
-        """Run archbuild CLI command via subprocess."""
+        """Run archrepobuild CLI command via subprocess."""
         if not self.config_path:
             raise RuntimeError("Config path not set")
 
@@ -74,7 +74,7 @@ class IntegrationTest:
         else:
             # Add src to PYTHONPATH so the CLI can find the package
             env["PYTHONPATH"] = str(Path(__file__).parent.parent / "src")
-            cmd = [sys.executable, "-m", "archbuild.cli", "-c", str(self.config_path), command] + list(args)
+            cmd = [sys.executable, "-m", "archrepobuild.cli", "-c", str(self.config_path), command] + list(args)
             
         return subprocess.run(cmd, capture_output=True, text=True, env=env)
 
@@ -83,7 +83,7 @@ class IntegrationTest:
         console.print("\n[bold blue]═══ Setting up test environment ═══[/]")
         
         # Create temp directory
-        self.temp_dir = Path(tempfile.mkdtemp(prefix="archbuild_test_"))
+        self.temp_dir = Path(tempfile.mkdtemp(prefix="archrepobuild_test_"))
         console.print(f"  Created temp directory: {self.temp_dir}")
 
         # Create subdirectories
@@ -147,7 +147,7 @@ VCSCLIENTS=('git::git'
         )
 
         # Save config to disk for CLI to use
-        from archbuild.config import save_config
+        from archrepobuild.config import save_config
         self.config_path = self.temp_dir / "config.yaml"
         save_config(self.config, self.config_path)
 
@@ -290,7 +290,7 @@ VCSCLIENTS=('git::git'
 
                         if artifacts:
                             # Create a mock build result for add_packages
-                            from archbuild.builder import BuildResult
+                            from archrepobuild.builder import BuildResult
                             mock_result = BuildResult(
                                 package=pkg_name,
                                 status=BuildStatus.SUCCESS,

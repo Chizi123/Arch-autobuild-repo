@@ -4,7 +4,7 @@ import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from datetime import datetime
 
-from archbuild.aur import AURClient, Package
+from archrepobuild.aur import AURClient, Package
 
 
 @pytest.fixture
@@ -107,21 +107,21 @@ class TestDependencyParsing:
 
     def test_parse_simple(self):
         """Test parsing simple dependency."""
-        from archbuild.resolver import Dependency
+        from archrepobuild.resolver import Dependency
         dep = Dependency.parse("package")
         assert dep.name == "package"
         assert dep.version_constraint is None
 
     def test_parse_with_version(self):
         """Test parsing dependency with version."""
-        from archbuild.resolver import Dependency
+        from archrepobuild.resolver import Dependency
         dep = Dependency.parse("package>=1.0")
         assert dep.name == "package"
         assert dep.version_constraint == ">=1.0"
 
     def test_parse_exact_version(self):
         """Test parsing dependency with exact version."""
-        from archbuild.resolver import Dependency
+        from archrepobuild.resolver import Dependency
         dep = Dependency.parse("package=2.0")
         assert dep.name == "package"
         assert dep.version_constraint == "=2.0"
