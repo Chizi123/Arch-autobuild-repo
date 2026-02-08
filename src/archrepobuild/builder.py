@@ -76,6 +76,7 @@ def _run_makepkg(
     sign: bool = False,
     key: str = "",
     clean: bool = True,
+    force: bool = False,
     skip_checksums: bool = False,
     extra_args: list[str] | None = None,
     env_overrides: dict[str, str] | None = None,
@@ -102,6 +103,8 @@ def _run_makepkg(
         cmd.append("-c")
     if sign and key:
         cmd.extend(["--sign", "--key", key])
+    if force:
+        cmd.append("-f")
     if skip_checksums:
         cmd.append("--skipchecksums")
     if extra_args:
@@ -122,7 +125,14 @@ def _run_makepkg(
         )
 
         if result.returncode != 0:
-            return False, result.stderr or result.stdout, []
+            error = result.stderr or result.stdout
+            if "A package has already been built" in error:
+                logger.info("Package already built, treating as success")
+                # Find built packages anyway
+                artifacts = list(package_dir.glob("*.pkg.tar.*"))
+                artifacts = [a for a in artifacts if not a.name.endswith(".sig")]
+                return True, "", artifacts
+            return False, error, []
 
         # Find built packages
         artifacts = list(package_dir.glob("*.pkg.tar.*"))
@@ -318,6 +328,7 @@ class Builder:
                     self.config.signing.enabled,
                     self.config.signing.key,
                     self.config.building.clean,
+                    force or is_vcs,
                     override.skip_checksums,
                     override.extra_args,
                     override.env,
