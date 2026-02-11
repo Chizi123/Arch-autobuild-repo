@@ -185,11 +185,11 @@ class RepoManager:
         removed = 0
 
         for f in to_remove:
-            f.unlink()
+            f.remove()
             # Also remove signature
             sig = f.with_suffix(f.suffix + ".sig")
             if sig.exists():
-                sig.unlink()
+                sig.remove()
             removed += 1
 
         if removed:
