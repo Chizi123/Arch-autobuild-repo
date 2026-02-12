@@ -41,6 +41,8 @@ notifications:
   email:
     # Enable email notifications on build failures
     enabled: false
+    # Send email every time the script is run or only on failures
+    email_everytime: true
     # Recipient email address
     to: ""
     # Sender email address

@@ -38,6 +38,7 @@ class EmailConfig(BaseModel):
     """Email notification settings."""
 
     enabled: bool = Field(default=False, description="Enable email notifications")
+    email_everytime: bool = Field(default=False, description="Send email every time the script is run")
     to: str = Field(default="", description="Recipient email address")
     from_addr: str = Field(default="", alias="from", description="Sender email address")
     smtp_host: str = Field(default="localhost", description="SMTP server host")

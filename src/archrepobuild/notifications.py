@@ -106,7 +106,7 @@ class EmailBackend(NotificationBackend):
 
     async def send(self, summary: BuildSummary, config: Config) -> bool:
         """Send email notification."""
-        if not self.config.enabled:
+        if not self.config.enabled and (self.config.email_everytime or summary.failed == 0):
             return True
 
         if not self.config.to:
