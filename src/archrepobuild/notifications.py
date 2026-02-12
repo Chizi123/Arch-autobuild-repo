@@ -140,21 +140,24 @@ class EmailBackend(NotificationBackend):
 
     def _send_email(self, msg: MIMEMultipart) -> None:
         """Send email synchronously (called from executor)."""
+        smtp_class = smtplib.SMTP
+        use_starttls = False
+
         if self.config.use_tls:
-            context = ssl.create_default_context()
-            with smtplib.SMTP_SSL(
-                self.config.smtp_host,
-                self.config.smtp_port,
-                context=context,
-            ) as server:
-                if self.config.username and self.config.password:
-                    server.login(self.config.username, self.config.password)
-                server.send_message(msg)
-        else:
-            with smtplib.SMTP(self.config.smtp_host, self.config.smtp_port) as server:
-                if self.config.username and self.config.password:
-                    server.login(self.config.username, self.config.password)
-                server.send_message(msg)
+            if self.config.smtp_port == 465:
+                smtp_class = smtplib.SMTP_SSL
+            else:
+                use_starttls = True
+
+        with smtp_class(self.config.smtp_host, self.config.smtp_port) as server:
+            if use_starttls:
+                context = ssl.create_default_context()
+                server.starttls(context=context)
+            
+            if self.config.username and self.config.password:
+                server.login(self.config.username, self.config.password)
+            
+            server.send_message(msg)
 
 
 class WebhookBackend(NotificationBackend):
