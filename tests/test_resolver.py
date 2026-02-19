@@ -122,10 +122,17 @@ class TestDependencyResolver:
     def test_is_in_official_repos(self, mock_run, mock_aur_client):
         """Test checking official repos."""
         mock_run.return_value.returncode = 0
-        mock_run.return_value.stdout = "base\ngit\nvim\n"
+        mock_run.return_value.stdout = "core base\nextra git\ncustom mypkg\n"
 
         resolver = DependencyResolver(mock_aur_client)
-        resolver._refresh_pacman_cache()
-
+        
+        # Test default (include_all=True)
         assert resolver.is_in_official_repos("git")
+        assert resolver.is_in_official_repos("mypkg")
+        assert resolver.is_in_official_repos("base")
         assert not resolver.is_in_official_repos("yay")
+
+        # Test official_only (include_all=False)
+        assert resolver.is_in_official_repos("git", include_all=False)
+        assert resolver.is_in_official_repos("base", include_all=False)
+        assert not resolver.is_in_official_repos("mypkg", include_all=False)

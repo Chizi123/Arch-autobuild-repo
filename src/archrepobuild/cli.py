@@ -179,8 +179,9 @@ def remove(ctx: Context, packages: tuple[str, ...], all_official: bool) -> None:
 
 
 @cli.command()
+@click.option("--all-repos", "-a", is_flag=True, help="Include all enabled repositories, not just official ones")
 @pass_context
-def check(ctx: Context) -> None:
+def check(ctx: Context, all_repos: bool) -> None:
     """Check for packages moved to official repos or removed from AUR."""
     config = ctx.config
 
@@ -196,13 +197,14 @@ def check(ctx: Context) -> None:
 
             with console.status("Checking packages..."):
                 for pkg in packages:
-                    if resolver.is_in_official_repos(pkg.name):
+                    if resolver.is_in_official_repos(pkg.name, include_all=all_repos):
                         in_official.append(pkg.name)
                     elif not await aur.is_available(pkg.name):
                         not_in_aur.append(pkg.name)
 
             if in_official:
-                console.print("\n[yellow]Packages now in official repos:[/]")
+                repo_type = "official" if not all_repos else "enabled"
+                console.print(f"\n[yellow]Packages now in {repo_type} repos:[/]")
                 for pkg in in_official:
                     console.print(f"  • {pkg}")
 

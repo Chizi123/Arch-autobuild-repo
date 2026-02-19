@@ -10,6 +10,10 @@ from archrepobuild.logging import get_logger
 
 logger = get_logger("resolver")
 
+# Official Arch Linux repositories
+OFFICIAL_REPOS = {"core", "extra", "multilib", "testing", "extra-testing", "multilib-testing", "gnome-unstable", "kde-unstable"}
+
+
 
 class DependencyType(Enum):
     """Type of dependency."""
@@ -71,40 +75,58 @@ class DependencyResolver:
             aur_client: AURClient instance for fetching package info
         """
         self.aur_client = aur_client
-        self._pacman_cache: set[str] = set()
+        self._pacman_cache: dict[str, set[str]] = {}  # repo -> packages
         self._pacman_checked = False
 
     def _refresh_pacman_cache(self) -> None:
         """Refresh cache of packages available from official repos."""
         try:
             result = subprocess.run(
-                ["pacman", "-Slq"],
+                ["pacman", "-Sl"],
                 capture_output=True,
                 text=True,
                 check=True,
             )
-            self._pacman_cache = set(result.stdout.strip().split("\n"))
+            self._pacman_cache = {}
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                parts = line.split()
+                if len(parts) >= 2:
+                    repo, name = parts[0], parts[1]
+                    if repo not in self._pacman_cache:
+                        self._pacman_cache[repo] = set()
+                    self._pacman_cache[repo].add(name)
+            
             self._pacman_checked = True
-            logger.debug(f"Cached {len(self._pacman_cache)} packages from official repos")
+            total_pkgs = sum(len(pkgs) for pkgs in self._pacman_cache.values())
+            logger.debug(f"Cached {total_pkgs} packages from {len(self._pacman_cache)} repos")
         except subprocess.CalledProcessError as e:
             logger.warning(f"Failed to get pacman package list: {e}")
-            self._pacman_cache = set()
+            self._pacman_cache = {}
 
-    def is_in_official_repos(self, name: str) -> bool:
+    def is_in_official_repos(self, name: str, include_all: bool = True) -> bool:
         """Check if package is available in official repositories.
 
         Args:
             name: Package name (without version constraint)
+            include_all: If True, check all enabled repos. If False, only official ones.
 
         Returns:
-            True if available in official repos
+            True if available in repos
         """
         if not self._pacman_checked:
             self._refresh_pacman_cache()
 
         # Strip version constraint
         base_name = name.split(">=")[0].split("<=")[0].split("=")[0].split(">")[0].split("<")[0]
-        return base_name in self._pacman_cache
+        
+        for repo, pkgs in self._pacman_cache.items():
+            if not include_all and repo not in OFFICIAL_REPOS:
+                continue
+            if base_name in pkgs:
+                return True
+        return False
 
     def is_installed(self, name: str) -> bool:
         """Check if package is already installed.
