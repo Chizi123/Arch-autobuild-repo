@@ -200,7 +200,7 @@ def check(ctx: Context, all_repos: bool) -> None:
                     # Ignore debug packages if the regular version is in official repos
                     if pkg.name.endswith("-debug"):
                         base_name = pkg.name[:-6]
-                        if resolver.is_in_official_repos(base_name, include_all=all_repos):
+                        if resolver.is_in_official_repos(base_name, include_all=all_repos) or await aur.is_available(base_name):
                             continue
 
                     if resolver.is_in_official_repos(pkg.name, include_all=all_repos):
