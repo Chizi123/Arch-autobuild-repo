@@ -119,20 +119,72 @@ class TestDependencyResolver:
         assert len(cycles) > 0
 
     @patch("archrepobuild.resolver.subprocess.run")
-    def test_is_in_official_repos(self, mock_run, mock_aur_client):
-        """Test checking official repos."""
+    def test_is_in_repos(self, mock_run, mock_aur_client):
+        """Test checking repos."""
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = "core base\nextra git\ncustom mypkg\n"
 
         resolver = DependencyResolver(mock_aur_client)
         
         # Test default (include_all=True)
-        assert resolver.is_in_official_repos("git")
-        assert resolver.is_in_official_repos("mypkg")
-        assert resolver.is_in_official_repos("base")
-        assert not resolver.is_in_official_repos("yay")
+        assert resolver.is_in_repos("git")
+        assert resolver.is_in_repos("mypkg")
+        assert resolver.is_in_repos("base")
+        assert not resolver.is_in_repos("yay")
 
         # Test official_only (include_all=False)
-        assert resolver.is_in_official_repos("git", include_all=False)
-        assert resolver.is_in_official_repos("base", include_all=False)
-        assert not resolver.is_in_official_repos("mypkg", include_all=False)
+        assert resolver.is_in_repos("git", include_all=False)
+        assert resolver.is_in_repos("base", include_all=False)
+        assert not resolver.is_in_repos("mypkg", include_all=False)
+
+    @pytest.mark.asyncio
+    async def test_resolve_includes_checkdepends(self, mock_aur_client):
+        """Test that resolve includes checkdepends in the build order or dependency map."""
+        from archrepobuild.aur import Package
+        
+        resolver = DependencyResolver(mock_aur_client)
+        
+        # Mock AUR response
+        pkg = Package(
+            name="test-pkg",
+            version="1.0",
+            description="test",
+            url=None,
+            maintainer=None,
+            votes=0,
+            popularity=0.0,
+            out_of_date=None,
+            first_submitted=None,
+            last_modified=None,
+            depends=[],
+            makedepends=[],
+            checkdepends=["check-dep"],
+        )
+        
+        dep_pkg = Package(
+            name="check-dep",
+            version="1.0",
+            description="test",
+            url=None,
+            maintainer=None,
+            votes=0,
+            popularity=0.0,
+            out_of_date=None,
+            first_submitted=None,
+            last_modified=None,
+            depends=[],
+            makedepends=[],
+            checkdepends=[],
+        )
+        
+        mock_aur_client.get_packages.side_effect = [[pkg], [dep_pkg]]
+        
+        # Assume neither is in repos or installed
+        with patch.object(resolver, "is_in_repos", return_value=False), \
+             patch.object(resolver, "is_installed", return_value=False):
+            
+            build_order = await resolver.resolve(["test-pkg"])
+            
+            assert "check-dep" in build_order.packages
+            assert "check-dep" in [d.name for d in build_order.aur_dependencies["test-pkg"]]
+            assert any(d.dep_type == DependencyType.CHECK for d in build_order.aur_dependencies["test-pkg"])

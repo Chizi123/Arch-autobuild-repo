@@ -105,8 +105,8 @@ class DependencyResolver:
             logger.warning(f"Failed to get pacman package list: {e}")
             self._pacman_cache = {}
 
-    def is_in_official_repos(self, name: str, include_all: bool = True) -> bool:
-        """Check if package is available in official repositories.
+    def is_in_repos(self, name: str, include_all: bool = True) -> bool:
+        """Check if package is available in repositories.
 
         Args:
             name: Package name (without version constraint)
@@ -170,14 +170,15 @@ class DependencyResolver:
         all_deps: list[str] = []
         all_deps.extend(package.depends)
         all_deps.extend(package.makedepends)
+        all_deps.extend(package.checkdepends)
 
         aur_deps: list[str] = []
         for dep in all_deps:
             dep_parsed = Dependency.parse(dep)
             base_name = dep_parsed.name
 
-            # Skip if in official repos or already installed
-            if self.is_in_official_repos(base_name):
+            # Skip if in repos or already installed
+            if self.is_in_repos(base_name):
                 continue
             if self.is_installed(base_name):
                 continue
@@ -292,11 +293,11 @@ class DependencyResolver:
         Raises:
             ValueError: If package not found or circular dependency
         """
-        # Filter out packages already in official repos or installed
+        # Filter out packages already in repos or installed
         aur_package_names = []
         for name in package_names:
-            if self.is_in_official_repos(name):
-                logger.info(f"Package {name} found in official repositories, skipping AUR lookup")
+            if self.is_in_repos(name):
+                logger.info(f"Package {name} found in repositories, skipping AUR lookup")
                 continue
             if self.is_installed(name):
                 logger.info(f"Package {name} is already installed, skipping AUR lookup")
@@ -339,12 +340,17 @@ class DependencyResolver:
                 deps: list[Dependency] = []
                 for dep in pkg.depends:
                     parsed = Dependency.parse(dep, DependencyType.RUNTIME)
-                    if not self.is_in_official_repos(parsed.name):
+                    if not self.is_in_repos(parsed.name):
                         parsed.is_aur = True
                     deps.append(parsed)
                 for dep in pkg.makedepends:
                     parsed = Dependency.parse(dep, DependencyType.BUILD)
-                    if not self.is_in_official_repos(parsed.name):
+                    if not self.is_in_repos(parsed.name):
+                        parsed.is_aur = True
+                    deps.append(parsed)
+                for dep in pkg.checkdepends:
+                    parsed = Dependency.parse(dep, DependencyType.CHECK)
+                    if not self.is_in_repos(parsed.name):
                         parsed.is_aur = True
                     deps.append(parsed)
                 aur_deps[name] = deps
