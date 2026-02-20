@@ -78,9 +78,22 @@ class DependencyResolver:
         self._pacman_cache: dict[str, set[str]] = {}  # repo -> packages
         self._pacman_checked = False
 
-    def _refresh_pacman_cache(self) -> None:
-        """Refresh cache of packages available from official repos."""
+    def _refresh_pacman_cache(self, sync: bool = False) -> None:
+        """Refresh cache of packages available from official repos.
+        
+        Args:
+            sync: Whether to synchronize pacman databases first using sudo pacman -Sy
+        """
         try:
+            if sync:
+                logger.info("Synchronizing pacman databases...")
+                subprocess.run(
+                    ["sudo", "pacman", "-Sy", "--noconfirm"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+
             result = subprocess.run(
                 ["pacman", "-Sl"],
                 capture_output=True,
@@ -102,8 +115,9 @@ class DependencyResolver:
             total_pkgs = sum(len(pkgs) for pkgs in self._pacman_cache.values())
             logger.debug(f"Cached {total_pkgs} packages from {len(self._pacman_cache)} repos")
         except subprocess.CalledProcessError as e:
-            logger.warning(f"Failed to get pacman package list: {e}")
-            self._pacman_cache = {}
+            logger.warning(f"Failed to refresh pacman cache: {e}")
+            if not self._pacman_cache:
+                self._pacman_cache = {}
 
     def is_in_repos(self, name: str, include_all: bool = True) -> str | None:
         """Check if package is available in repositories.

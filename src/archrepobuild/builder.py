@@ -533,7 +533,7 @@ class Builder:
                     logger.info(f"Adding {pkg_name} to repository")
                     self.repo.add_packages(result)
                     # Refresh resolver cache to recognize the newly added package
-                    self.resolver._refresh_pacman_cache()
+                    self.resolver._refresh_pacman_cache(sync=True)
             elif result.status == BuildStatus.FAILED:
                 logger.error(f"Failed to process {pkg_name}, aborting")
                 if pkg_name == package:
