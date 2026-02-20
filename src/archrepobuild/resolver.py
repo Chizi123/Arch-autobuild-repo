@@ -126,6 +126,36 @@ class DependencyResolver:
                 continue
             if base_name in pkgs:
                 return repo
+        
+        # Fallback: check provides via pacman -Sp
+        try:
+            # Use pacman -Sp --noconfirm to see if pacman can resolve it
+            result = subprocess.run(
+                ["pacman", "-Sp", "--noconfirm", base_name],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                # Successfully resolved. Find what it resolved to.
+                # Output looks like: file:///var/cache/pacman/pkg/name-version...
+                output = result.stdout.strip().split("\n")[-1]
+                if output:
+                    filename = output.split("/")[-1]
+                    # The package name is before the version
+                    import re
+                    match = re.search(r"^(.*?)-[0-9].*", filename)
+                    if match:
+                        resolved_name = match.group(1)
+                        # Now check which repo this resolved_name belongs to
+                        # We already have resolved_name in our cache if it's in a repo
+                        for repo, pkgs in self._pacman_cache.items():
+                            if not include_all and repo not in OFFICIAL_REPOS:
+                                continue
+                            if resolved_name in pkgs:
+                                return repo
+        except Exception as e:
+            logger.debug(f"Failed to resolve provides for {base_name}: {e}")
+
         return None
 
     def is_installed(self, name: str) -> bool:

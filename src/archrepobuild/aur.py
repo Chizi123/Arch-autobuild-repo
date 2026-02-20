@@ -38,6 +38,7 @@ class Package:
     out_of_date: datetime | None
     first_submitted: datetime
     last_modified: datetime
+    package_base: str
     depends: list[str] = field(default_factory=list)
     makedepends: list[str] = field(default_factory=list)
     checkdepends: list[str] = field(default_factory=list)
@@ -50,8 +51,8 @@ class Package:
 
     @property
     def git_url(self) -> str:
-        """Get the git clone URL for this package."""
-        return f"{AUR_GIT_URL}/{self.name}.git"
+        """Get the git clone URL for this package (using PackageBase)."""
+        return f"{AUR_GIT_URL}/{self.package_base}.git"
 
     @property
     def aur_url(self) -> str:
@@ -81,6 +82,7 @@ class Package:
             ),
             first_submitted=datetime.fromtimestamp(data["FirstSubmitted"]),
             last_modified=datetime.fromtimestamp(data["LastModified"]),
+            package_base=data.get("PackageBase", data["Name"]),
             depends=data.get("Depends", []),
             makedepends=data.get("MakeDepends", []),
             checkdepends=data.get("CheckDepends", []),
