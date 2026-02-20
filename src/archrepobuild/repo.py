@@ -84,14 +84,14 @@ class RepoManager:
         except (subprocess.CalledProcessError, ValueError):
             return 0
 
-    def _parse_pkg_filename(self, filename: str) -> tuple[str, str]:
-        """Parse package name and version from a filename.
+    def _parse_pkg_filename(self, filename: str) -> tuple[str, str, str]:
+        """Parse package name, version, and architecture from a filename.
 
         Args:
             filename: Package filename (e.g. name-version-rel-arch.pkg.tar.zst)
 
         Returns:
-            Tuple of (package_name, version-release)
+            Tuple of (package_name, version-release, architecture)
         """
         # Remove suffixes
         stem = filename
@@ -105,9 +105,10 @@ class RepoManager:
         if len(parts) == 4:
             name = parts[0]
             version = f"{parts[1]}-{parts[2]}"
-            return name, version
+            arch = parts[3]
+            return name, version, arch
 
-        return stem, "unknown"
+        return stem, "unknown", "unknown"
 
     def ensure_repo_exists(self) -> None:
         """Ensure repository directory and database exist."""
@@ -123,36 +124,37 @@ class RepoManager:
             if result.returncode != 0:
                 logger.warning(f"Could not create empty database: {result.stderr}")
 
-    def add_packages(self, build_result: BuildResult) -> bool:
+    def add_packages(self, build_result: BuildResult) -> list[str]:
         """Add built packages to the repository.
 
         Args:
             build_result: Result from package build
 
         Returns:
-            True if packages were added successfully
+            List of filenames added successfully
         """
         if build_result.status != BuildStatus.SUCCESS:
             logger.warning(f"Cannot add {build_result.package}: build was not successful")
-            return False
+            return []
 
         if not build_result.artifacts:
             logger.warning(f"No artifacts to add for {build_result.package}")
-            return False
+            return []
 
         with self._get_repo_lock():
             self.ensure_repo_exists()
 
-            # Group artifacts by package name and only keep the latest version
-            latest_artifacts: dict[str, Path] = {}
+            # Group artifacts by (name, arch) and only keep the latest version
+            latest_artifacts: dict[tuple[str, str], Path] = {}
             for artifact in build_result.artifacts:
-                name, version = self._parse_pkg_filename(artifact.name)
-                if name not in latest_artifacts:
-                    latest_artifacts[name] = artifact
+                name, version, arch = self._parse_pkg_filename(artifact.name)
+                key = (name, arch)
+                if key not in latest_artifacts:
+                    latest_artifacts[key] = artifact
                 else:
-                    _, current_best_ver = self._parse_pkg_filename(latest_artifacts[name].name)
+                    _, current_best_ver, _ = self._parse_pkg_filename(latest_artifacts[key].name)
                     if self._vercmp(version, current_best_ver) > 0:
-                        latest_artifacts[name] = artifact
+                        latest_artifacts[key] = artifact
 
             artifacts_to_copy = list(latest_artifacts.values())
 
@@ -176,14 +178,15 @@ class RepoManager:
 
             if result.returncode != 0:
                 logger.error(f"Failed to add packages to database: {result.stderr}")
-                return False
+                return []
 
             # Clean up old versions in repo for each package name added
-            for name in latest_artifacts.keys():
+            for (name, arch) in latest_artifacts.keys():
                 self._remove_old_packages(name)
 
-            logger.info(f"Added {len(copied_files)} package(s) to repository")
-            return True
+            added_names = [f.name for f in copied_files]
+            logger.info(f"Added to repository: {', '.join(added_names)}")
+            return added_names
 
     def remove_package(self, package: str) -> bool:
         """Remove a package from the repository.
@@ -265,7 +268,7 @@ class RepoManager:
             if f.name.endswith(".sig"):
                 continue
 
-            name, version = self._parse_pkg_filename(f.name)
+            name, version, arch = self._parse_pkg_filename(f.name)
 
             stat = f.stat()
             packages.append(PackageInfo(

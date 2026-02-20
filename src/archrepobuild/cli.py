@@ -133,7 +133,10 @@ def add(ctx: Context, packages: tuple[str, ...]) -> None:
                     results.append(result)
 
                     if result.status == BuildStatus.SUCCESS:
-                        console.print(f"[green]✓[/] {package} processed successfully")
+                        if len(result.artifacts) > 1:
+                            console.print(f"[green]✓[/] {package} processed successfully ({len(result.artifacts)} artifacts registered)")
+                        else:
+                            console.print(f"[green]✓[/] {package} processed successfully")
                     elif result.status == BuildStatus.SKIPPED:
                         console.print(f"[yellow]⏭[/] {package} skipped (already in managed repository)")
                     else:
