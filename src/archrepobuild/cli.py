@@ -135,9 +135,9 @@ def add(ctx: Context, packages: tuple[str, ...]) -> None:
 
                     if result.status == BuildStatus.SUCCESS:
                         repo.add_packages(result)
-                        console.print(f"[green]✓[/] {package} added successfully")
+                        console.print(f"[green]✓[/] {package} processed successfully")
                     elif result.status == BuildStatus.SKIPPED:
-                        console.print(f"[yellow]⏭[/] {package} skipped (already in official repos or installed)")
+                        console.print(f"[yellow]⏭[/] {package} skipped (already in managed repository)")
                     else:
                         console.print(f"[red]✗[/] {package} failed: {result.error}")
 

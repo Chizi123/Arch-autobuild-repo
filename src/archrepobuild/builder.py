@@ -418,8 +418,74 @@ class Builder:
 
         return list(results)
 
+    async def download_package(self, package: str) -> BuildResult:
+        """Download a package from a repository using pacman.
+
+        Args:
+            package: Package name
+
+        Returns:
+            BuildResult with status and artifact path
+        """
+        start_time = datetime.now()
+        logger.info(f"Downloading package from repositories: {package}")
+
+        dest_dir = self.config.repository.build_dir / "downloads"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            # Use pacman -Sw to download to a specific directory is not directly possible
+            # But we can use pacman -Sp to get the URL and download it
+            result = subprocess.run(
+                ["pacman", "-Sp", "--noconfirm", package],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            
+            urls = [line for line in result.stdout.strip().split("\n") if line.startswith("http") or line.startswith("ftp") or line.startswith("file")]
+            if not urls:
+                raise ValueError(f"Could not find download URL for package: {package}")
+
+            artifacts: list[Path] = []
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                for url in urls:
+                    filename = url.split("/")[-1]
+                    dest_path = dest_dir / filename
+                    
+                    logger.debug(f"Downloading {url} to {dest_path}")
+                    async with session.get(url) as response:
+                        response.raise_for_status()
+                        with open(dest_path, "wb") as f:
+                            while True:
+                                chunk = await response.content.read(8192)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                    artifacts.append(dest_path)
+
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.info(f"Successfully downloaded {package} in {duration:.1f}s")
+            return BuildResult(
+                package=package,
+                status=BuildStatus.SUCCESS,
+                duration=duration,
+                artifacts=artifacts,
+            )
+
+        except Exception as e:
+            duration = (datetime.now() - start_time).total_seconds()
+            logger.error(f"Failed to download {package}: {e}")
+            return BuildResult(
+                package=package,
+                status=BuildStatus.FAILED,
+                duration=duration,
+                error=str(e),
+            )
+
     async def add_package(self, package: str) -> BuildResult:
-        """Add and build a new package with dependencies.
+        """Add and build (or download) a new package with dependencies.
 
         Args:
             package: Package name
@@ -432,31 +498,42 @@ class Builder:
         # Resolve dependencies
         build_order = await self.resolver.resolve([package])
 
-        if package not in build_order.packages:
-            logger.info(f"Package {package} does not need to be built")
-            return BuildResult(
-                package=package,
-                status=BuildStatus.SKIPPED,
-            )
+        # Filter build order: skip managed repo, download others, build AUR
+        final_results: list[BuildResult] = []
+        for pkg_name in build_order:
+            repo = self.resolver.is_in_repos(pkg_name)
+            
+            if repo == self.config.repository.name:
+                logger.info(f"Package {pkg_name} already in managed repository, skipping")
+                if pkg_name == package:
+                    return BuildResult(package=package, status=BuildStatus.SKIPPED)
+                continue
 
-        # Build dependencies first
-        results: list[BuildResult] = []
-        for dep in build_order:
-            if dep != package:
-                logger.info(f"Building dependency: {dep}")
-                result = await self.build_package(dep, force=True)
-                results.append(result)
+            if repo:
+                logger.info(f"Package {pkg_name} found in {repo}, downloading...")
+                result = await self.download_package(pkg_name)
+            else:
+                logger.info(f"Package {pkg_name} only in AUR, building...")
+                result = await self.build_package(pkg_name, force=True)
 
-                if result.status == BuildStatus.FAILED:
-                    logger.error(f"Dependency {dep} failed, aborting")
-                    return BuildResult(
-                        package=package,
-                        status=BuildStatus.FAILED,
-                        error=f"Dependency {dep} failed to build",
-                    )
+            final_results.append(result)
 
-        # Build main package
-        return await self.build_package(package, force=True)
+            if result.status == BuildStatus.FAILED:
+                logger.error(f"Failed to process {pkg_name}, aborting")
+                if pkg_name == package:
+                    return result
+                return BuildResult(
+                    package=package,
+                    status=BuildStatus.FAILED,
+                    error=f"Dependency {pkg_name} failed: {result.error}",
+                )
+
+        # Return result for the main package
+        for r in final_results:
+            if r.package == package:
+                return r
+        
+        return BuildResult(package=package, status=BuildStatus.SKIPPED)
 
     def remove_package(self, package: str) -> bool:
         """Remove a package from the build directory.

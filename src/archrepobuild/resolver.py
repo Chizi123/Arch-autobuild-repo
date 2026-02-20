@@ -105,7 +105,7 @@ class DependencyResolver:
             logger.warning(f"Failed to get pacman package list: {e}")
             self._pacman_cache = {}
 
-    def is_in_repos(self, name: str, include_all: bool = True) -> bool:
+    def is_in_repos(self, name: str, include_all: bool = True) -> str | None:
         """Check if package is available in repositories.
 
         Args:
@@ -113,7 +113,7 @@ class DependencyResolver:
             include_all: If True, check all enabled repos. If False, only official ones.
 
         Returns:
-            True if available in repos
+            Name of repository where package was found, or None if not found
         """
         if not self._pacman_checked:
             self._refresh_pacman_cache()
@@ -125,8 +125,8 @@ class DependencyResolver:
             if not include_all and repo not in OFFICIAL_REPOS:
                 continue
             if base_name in pkgs:
-                return True
-        return False
+                return repo
+        return None
 
     def is_installed(self, name: str) -> bool:
         """Check if package is already installed.
