@@ -124,9 +124,8 @@ def add(ctx: Context, packages: tuple[str, ...]) -> None:
 
     async def _add() -> None:
         async with AURClient() as aur:
-            async with Builder(config, aur) as builder:
-                repo = RepoManager(config)
-
+            repo = RepoManager(config)
+            async with Builder(config, aur, repo=repo) as builder:
                 results = []
                 for package in packages:
                     console.print(f"[bold blue]Adding package:[/] {package}")
@@ -134,7 +133,6 @@ def add(ctx: Context, packages: tuple[str, ...]) -> None:
                     results.append(result)
 
                     if result.status == BuildStatus.SUCCESS:
-                        repo.add_packages(result)
                         console.print(f"[green]✓[/] {package} processed successfully")
                     elif result.status == BuildStatus.SKIPPED:
                         console.print(f"[yellow]⏭[/] {package} skipped (already in managed repository)")

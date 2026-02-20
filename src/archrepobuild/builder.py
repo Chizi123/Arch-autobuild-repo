@@ -10,7 +10,9 @@ from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor
-from typing import Any
+from typing import Any, TYPE_CHECKING
+if TYPE_CHECKING:
+    from archrepobuild.repo import RepoManager
 
 from archrepobuild.aur import AURClient
 from archrepobuild.config import Config, PackageOverride
@@ -153,15 +155,18 @@ class Builder:
         self,
         config: Config,
         aur_client: AURClient,
+        repo: RepoManager | None = None,
     ):
         """Initialize builder.
 
         Args:
             config: Application configuration
             aur_client: AUR client for package info
+            repo: Optional repository manager for incremental registration
         """
         self.config = config
         self.aur_client = aur_client
+        self.repo = repo
         self.resolver = DependencyResolver(aur_client)
         self._lock_dir = config.repository.build_dir / ".locks"
         self._executor: ProcessPoolExecutor | None = None
@@ -523,7 +528,13 @@ class Builder:
 
             final_results.append(result)
 
-            if result.status == BuildStatus.FAILED:
+            if result.status == BuildStatus.SUCCESS:
+                if self.repo:
+                    logger.info(f"Adding {pkg_name} to repository")
+                    self.repo.add_packages(result)
+                    # Refresh resolver cache to recognize the newly added package
+                    self.resolver._refresh_pacman_cache()
+            elif result.status == BuildStatus.FAILED:
                 logger.error(f"Failed to process {pkg_name}, aborting")
                 if pkg_name == package:
                     return result
