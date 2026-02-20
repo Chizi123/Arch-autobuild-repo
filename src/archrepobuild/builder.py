@@ -251,11 +251,16 @@ class Builder:
                 raise ValueError(f"Package not found in AUR: {package}")
 
             pkg_dir.parent.mkdir(parents=True, exist_ok=True)
-            subprocess.run(
-                ["git", "clone", pkg_info.git_url, str(pkg_dir)],
-                check=True,
-                capture_output=True,
-            )
+            try:
+                subprocess.run(
+                    ["git", "clone", pkg_info.git_url, str(pkg_dir)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to clone {package} from {pkg_info.git_url}: {e.stderr}")
+                raise ValueError(f"Failed to clone package from AUR: {e.stderr}")
             return True
 
     def _is_vcs_package(self, package_dir: Path) -> bool:
