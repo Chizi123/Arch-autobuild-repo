@@ -211,8 +211,16 @@ class RepoManager:
             # Remove package files
             removed = 0
             for f in self.config.repository.path.glob(f"{package}-*.pkg.tar.*"):
-                f.unlink()
-                removed += 1
+                if f.name.endswith(".sig"):
+                    continue
+                name, _, _ = self._parse_pkg_filename(f.name)
+                if name == package:
+                    f.unlink()
+                    removed += 1
+                    # Also remove signature
+                    sig = f.with_suffix(f.suffix + ".sig")
+                    if sig.exists():
+                        sig.unlink()
 
             logger.info(f"Removed {package} ({removed} files)")
             return True
@@ -232,6 +240,8 @@ class RepoManager:
         # Find all package files
         files = list(self.config.repository.path.glob(pattern))
         files = [f for f in files if not f.name.endswith(".sig")]
+        # Filter to ensure exact package name match (to avoid matching sub-packages)
+        files = [f for f in files if self._parse_pkg_filename(f.name)[0] == package]
 
         if len(files) <= keep_versions:
             return 0
