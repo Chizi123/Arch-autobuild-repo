@@ -221,10 +221,8 @@ class DependencyResolver:
             dep_parsed = Dependency.parse(dep)
             base_name = dep_parsed.name
 
-            # Skip if in repos or already installed
+            # Skip if in repos
             if self.is_in_repos(base_name):
-                continue
-            if self.is_installed(base_name):
                 continue
 
             aur_deps.append(base_name)
@@ -348,9 +346,6 @@ class DependencyResolver:
                 else:
                     logger.info(f"Package {name} found in {repo}, skipping AUR lookup")
                     continue
-            if self.is_installed(name):
-                logger.info(f"Package {name} is already installed, skipping AUR lookup")
-                continue
             aur_package_names.append(name)
 
         if not aur_package_names:

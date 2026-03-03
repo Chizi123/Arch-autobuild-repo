@@ -515,11 +515,15 @@ class Builder:
         for pkg_name in build_order:
             repo = self.resolver.is_in_repos(pkg_name)
             
-            if include_repo and repo == self.config.repository.name:
-                logger.info(f"Package {pkg_name} already in managed repository, skipping")
-                if pkg_name == package:
-                    return BuildResult(package=package, status=BuildStatus.SKIPPED)
-                continue
+            if repo == self.config.repository.name:
+                if include_repo:
+                    logger.info(f"Package {pkg_name} already in managed repository, skipping")
+                    if pkg_name == package:
+                        return BuildResult(package=package, status=BuildStatus.SKIPPED)
+                    continue
+                else:
+                    # Treat as not in repo to force rebuild from AUR
+                    repo = None
 
             if repo:
                 logger.info(f"Package {pkg_name} found in {repo}, downloading...")
