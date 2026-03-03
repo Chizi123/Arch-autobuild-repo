@@ -494,11 +494,12 @@ class Builder:
                 error=str(e),
             )
 
-    async def add_package(self, package: str) -> BuildResult:
+    async def add_package(self, package: str, include_repo: bool = False) -> BuildResult:
         """Add and build (or download) a new package with dependencies.
 
         Args:
             package: Package name
+            include_repo: Whether to check the managed repository for existing packages
 
         Returns:
             BuildResult for the main package
@@ -506,14 +507,15 @@ class Builder:
         logger.info(f"Adding package: {package}")
 
         # Resolve dependencies
-        build_order = await self.resolver.resolve([package])
+        exclude_repo = None if include_repo else self.config.repository.name
+        build_order = await self.resolver.resolve([package], exclude_repo=exclude_repo)
 
         # Filter build order: skip managed repo, download others, build AUR
         final_results: list[BuildResult] = []
         for pkg_name in build_order:
             repo = self.resolver.is_in_repos(pkg_name)
             
-            if repo == self.config.repository.name:
+            if include_repo and repo == self.config.repository.name:
                 logger.info(f"Package {pkg_name} already in managed repository, skipping")
                 if pkg_name == package:
                     return BuildResult(package=package, status=BuildStatus.SKIPPED)

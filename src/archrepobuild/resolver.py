@@ -325,11 +325,12 @@ class DependencyResolver:
 
         return cycles
 
-    async def resolve(self, package_names: list[str]) -> BuildOrder:
+    async def resolve(self, package_names: list[str], exclude_repo: str | None = None) -> BuildOrder:
         """Resolve dependencies and determine build order.
 
         Args:
             package_names: List of packages to resolve
+            exclude_repo: Optional repository name to exclude from existence checks
 
         Returns:
             BuildOrder with packages in correct build order
@@ -340,9 +341,13 @@ class DependencyResolver:
         # Filter out packages already in repos or installed
         aur_package_names = []
         for name in package_names:
-            if self.is_in_repos(name):
-                logger.info(f"Package {name} found in repositories, skipping AUR lookup")
-                continue
+            repo = self.is_in_repos(name)
+            if repo:
+                if exclude_repo and repo == exclude_repo:
+                    logger.debug(f"Package {name} found in excluded repo {repo}, treating as not in repos")
+                else:
+                    logger.info(f"Package {name} found in {repo}, skipping AUR lookup")
+                    continue
             if self.is_installed(name):
                 logger.info(f"Package {name} is already installed, skipping AUR lookup")
                 continue

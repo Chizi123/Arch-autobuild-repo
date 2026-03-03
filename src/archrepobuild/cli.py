@@ -117,8 +117,14 @@ def build(ctx: Context, package: str, force: bool) -> None:
 
 @cli.command()
 @click.argument("packages", nargs=-1, required=True)
+@click.option(
+    "--include-repo",
+    is_flag=True,
+    default=False,
+    help="Check managed repository for existing packages (skip if present)",
+)
 @pass_context
-def add(ctx: Context, packages: tuple[str, ...]) -> None:
+def add(ctx: Context, packages: tuple[str, ...], include_repo: bool) -> None:
     """Add and build new packages from the AUR."""
     config = ctx.config
 
@@ -129,7 +135,7 @@ def add(ctx: Context, packages: tuple[str, ...]) -> None:
                 results = []
                 for package in packages:
                     console.print(f"[bold blue]Adding package:[/] {package}")
-                    result = await builder.add_package(package)
+                    result = await builder.add_package(package, include_repo=include_repo)
                     results.append(result)
 
                     if result.status == BuildStatus.SUCCESS:

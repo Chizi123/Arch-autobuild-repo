@@ -145,6 +145,7 @@ class TestDependencyResolver:
         resolver = DependencyResolver(mock_aur_client)
         
         # Mock AUR response
+        from datetime import datetime
         pkg = Package(
             name="test-pkg",
             version="1.0",
@@ -154,8 +155,9 @@ class TestDependencyResolver:
             votes=0,
             popularity=0.0,
             out_of_date=None,
-            first_submitted=None,
-            last_modified=None,
+            first_submitted=datetime.now(),
+            last_modified=datetime.now(),
+            package_base="test-pkg",
             depends=[],
             makedepends=[],
             checkdepends=["check-dep"],
@@ -170,8 +172,9 @@ class TestDependencyResolver:
             votes=0,
             popularity=0.0,
             out_of_date=None,
-            first_submitted=None,
-            last_modified=None,
+            first_submitted=datetime.now(),
+            last_modified=datetime.now(),
+            package_base="check-dep",
             depends=[],
             makedepends=[],
             checkdepends=[],
@@ -188,3 +191,46 @@ class TestDependencyResolver:
             assert "check-dep" in build_order.packages
             assert "check-dep" in [d.name for d in build_order.aur_dependencies["test-pkg"]]
             assert any(d.dep_type == DependencyType.CHECK for d in build_order.aur_dependencies["test-pkg"])
+
+    @pytest.mark.asyncio
+    async def test_resolve_with_exclude_repo(self, mock_aur_client):
+        """Test that resolve correctly handles exclude_repo."""
+        from archrepobuild.aur import Package
+        
+        resolver = DependencyResolver(mock_aur_client)
+        
+        from datetime import datetime
+        # Mock AUR response
+        pkg = Package(
+            name="test-pkg",
+            version="1.0",
+            description="test",
+            url=None,
+            maintainer=None,
+            votes=0,
+            popularity=0.0,
+            out_of_date=None,
+            first_submitted=datetime.now(),
+            last_modified=datetime.now(),
+            package_base="test-pkg",
+            depends=[],
+            makedepends=[],
+            checkdepends=[],
+        )
+        
+        mock_aur_client.get_packages.return_value = [pkg]
+        
+        # Case 1: Package in repo, not excluded -> should be skipped
+        with patch.object(resolver, "is_in_repos", return_value="myrepo"):
+            build_order = await resolver.resolve(["test-pkg"])
+            assert "test-pkg" not in build_order.packages
+            
+        # Case 2: Package in repo, excluded -> should be included (AUR lookup)
+        with patch.object(resolver, "is_in_repos", return_value="myrepo"):
+            build_order = await resolver.resolve(["test-pkg"], exclude_repo="myrepo")
+            assert "test-pkg" in build_order.packages
+
+        # Case 3: Package in different repo, not excluded -> should be skipped
+        with patch.object(resolver, "is_in_repos", return_value="otherrepo"):
+            build_order = await resolver.resolve(["test-pkg"], exclude_repo="myrepo")
+            assert "test-pkg" not in build_order.packages
