@@ -28,15 +28,17 @@ def run_async(coro: Any) -> Any:
 class Context:
     """CLI context holding shared state."""
 
-    def __init__(self, config_path: Path):
+    def __init__(self, config_path: Path, verbose: bool = False):
         self.config_path = config_path
+        self.verbose = verbose
         self._config: Config | None = None
 
     @property
     def config(self) -> Config:
         if self._config is None:
             self._config = load_config(self.config_path)
-            setup_logging(self._config.log_level, self._config.log_file)
+            log_level = "DEBUG" if self.verbose else self._config.log_level
+            setup_logging(log_level, self._config.log_file)
         return self._config
 
 
@@ -50,26 +52,34 @@ pass_context = click.make_pass_decorator(Context)
     default=Path("config.yaml"),
     help="Path to configuration file",
 )
+@click.option(
+    "-v", "--verbose",
+    is_flag=True,
+    help="Enable verbose output",
+)
 @click.version_option(__version__, prog_name="archrepobuild")
 @click.pass_context
-def cli(ctx: click.Context, config: Path) -> None:
+def cli(ctx: click.Context, config: Path, verbose: bool) -> None:
     """Archbuild - Automatic AUR package building and repository management.
 
     A modern, sustainable replacement for legacy Bash-based AUR build systems.
     """
-    ctx.obj = Context(config)
+    ctx.obj = Context(config, verbose=verbose)
 
 
 @cli.command()
 @click.option("--force", "-f", is_flag=True, help="Force rebuild all packages")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose/debug output")
 @pass_context
-def build_all(ctx: Context, force: bool) -> None:
+def build_all(ctx: Context, force: bool, verbose: bool) -> None:
     """Build all packages in the build directory."""
+    if verbose:
+        ctx.verbose = True
     config = ctx.config
 
     async def _build_all() -> None:
         async with AURClient() as aur:
-            async with Builder(config, aur) as builder:
+            async with Builder(config, aur, verbose=ctx.verbose) as builder:
                 results = await builder.build_all(force=force)
 
                 # Add to repository
@@ -91,14 +101,17 @@ def build_all(ctx: Context, force: bool) -> None:
 @cli.command()
 @click.argument("package")
 @click.option("--force", "-f", is_flag=True, help="Force rebuild package")
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose/debug output")
 @pass_context
-def build(ctx: Context, package: str, force: bool) -> None:
+def build(ctx: Context, package: str, force: bool, verbose: bool) -> None:
     """Build a specific package in the build directory."""
+    if verbose:
+        ctx.verbose = True
     config = ctx.config
 
     async def _build() -> None:
         async with AURClient() as aur:
-            async with Builder(config, aur) as builder:
+            async with Builder(config, aur, verbose=ctx.verbose) as builder:
                 result = await builder.build_package(package, force=force)
 
                 if result.status == BuildStatus.SUCCESS:
@@ -123,15 +136,18 @@ def build(ctx: Context, package: str, force: bool) -> None:
     default=False,
     help="Check managed repository for existing packages (skip if present)",
 )
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose/debug output")
 @pass_context
-def add(ctx: Context, packages: tuple[str, ...], include_repo: bool) -> None:
+def add(ctx: Context, packages: tuple[str, ...], include_repo: bool, verbose: bool) -> None:
     """Add and build new packages from the AUR."""
+    if verbose:
+        ctx.verbose = True
     config = ctx.config
 
     async def _add() -> None:
         async with AURClient() as aur:
             repo = RepoManager(config)
-            async with Builder(config, aur, repo=repo) as builder:
+            async with Builder(config, aur, repo=repo, verbose=ctx.verbose) as builder:
                 results = []
                 for package in packages:
                     console.print(f"[bold blue]Adding package:[/] {package}")

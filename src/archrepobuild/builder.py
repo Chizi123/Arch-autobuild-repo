@@ -5,6 +5,7 @@ import fcntl
 import os
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -82,6 +83,7 @@ def _run_makepkg(
     skip_checksums: bool = False,
     extra_args: list[str] | None = None,
     env_overrides: dict[str, str] | None = None,
+    verbose: bool = False,
 ) -> tuple[bool, str, list[Path]]:
     """Run makepkg in a subprocess.
 
@@ -95,6 +97,7 @@ def _run_makepkg(
         skip_checksums: Skip checksum verification
         extra_args: Additional makepkg arguments
         env_overrides: Environment variable overrides
+        verbose: Stream stdout/stderr to console in real-time
 
     Returns:
         Tuple of (success, error_message, artifact_paths)
@@ -117,17 +120,42 @@ def _run_makepkg(
         env.update(env_overrides)
 
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=package_dir,
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=3600,  # 1 hour timeout
-        )
+        if verbose:
+            process = subprocess.Popen(
+                cmd,
+                cwd=package_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+            )
 
-        if result.returncode != 0:
+            output_lines = []
+            while True:
+                line = process.stdout.readline()
+                if not line and process.poll() is not None:
+                    break
+                if line:
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+                    output_lines.append(line)
+
+            process.wait()
+            returncode = process.returncode
+            error = "".join(output_lines)
+        else:
+            result = subprocess.run(
+                cmd,
+                cwd=package_dir,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=3600,  # 1 hour timeout
+            )
+            returncode = result.returncode
             error = result.stderr or result.stdout
+
+        if returncode != 0:
             if "A package has already been built" in error:
                 logger.info("Package already built, treating as success")
                 # Find built packages anyway
@@ -156,6 +184,7 @@ class Builder:
         config: Config,
         aur_client: AURClient,
         repo: RepoManager | None = None,
+        verbose: bool = False,
     ):
         """Initialize builder.
 
@@ -163,10 +192,12 @@ class Builder:
             config: Application configuration
             aur_client: AUR client for package info
             repo: Optional repository manager for incremental registration
+            verbose: Enable verbose mode to stream compilation output
         """
         self.config = config
         self.aur_client = aur_client
         self.repo = repo
+        self.verbose = verbose
         self.resolver = DependencyResolver(aur_client)
         self._lock_dir = config.repository.build_dir / ".locks"
         self._executor: ProcessPoolExecutor | None = None
@@ -342,6 +373,7 @@ class Builder:
                     override.skip_checksums,
                     override.extra_args,
                     override.env,
+                    self.verbose,
                 )
 
                 if success:
