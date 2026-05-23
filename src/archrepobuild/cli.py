@@ -194,9 +194,14 @@ def remove(ctx: Context, packages: tuple[str, ...], all_official: bool) -> None:
                             repo.remove_package(pkg.name)
                 else:
                     for package in packages:
+                        built_packages = builder.get_built_packages(package)
+                        for pkg in built_packages:
+                            repo.remove_package(pkg)
                         builder.remove_package(package)
-                        repo.remove_package(package)
-                        console.print(f"[green]✓[/] Removed {package}")
+                        if len(built_packages) > 1 or (len(built_packages) == 1 and built_packages[0] != package):
+                            console.print(f"[green]✓[/] Removed {package} and all its built packages ({', '.join(built_packages)})")
+                        else:
+                            console.print(f"[green]✓[/] Removed {package}")
 
     run_async(_remove())
 

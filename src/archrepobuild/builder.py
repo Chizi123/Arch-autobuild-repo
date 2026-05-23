@@ -590,6 +590,56 @@ class Builder:
         
         return BuildResult(package=package, status=BuildStatus.SKIPPED)
 
+    def get_built_packages(self, package: str) -> list[str]:
+        """Get the names of all packages built by this app/PKGBUILD.
+
+        Args:
+            package: Package/app name
+
+        Returns:
+            List of package names built by this app
+        """
+        pkg_dir = self._get_package_dir(package)
+        pkgbuild = pkg_dir / "PKGBUILD"
+
+        if not pkgbuild.exists():
+            logger.debug(f"PKGBUILD not found in {pkg_dir}, falling back to {package}")
+            return [package]
+
+        try:
+            result = subprocess.run(
+                ["makepkg", "--packagelist"],
+                cwd=pkg_dir,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            built_packages = []
+            for line in result.stdout.strip().split("\n"):
+                if not line:
+                    continue
+                path = Path(line)
+                # Extract package name from the path's name, e.g. "pkgname-version-rel-arch.pkg.tar.zst"
+                stem = path.name
+                for suffix in [".pkg.tar.zst", ".pkg.tar.xz", ".pkg.tar.gz", ".pkg.tar.bz2", ".pkg.tar"]:
+                    if stem.endswith(suffix):
+                        stem = stem[:-len(suffix)]
+                        break
+                parts = stem.rsplit("-", 3)
+                if len(parts) == 4:
+                    name = parts[0]
+                else:
+                    name = stem
+                built_packages.append(name)
+
+            if not built_packages:
+                return [package]
+            return built_packages
+        except Exception as e:
+            logger.warning(f"Failed to run makepkg --packagelist for {package}: {e}, falling back to {package}")
+            return [package]
+
     def remove_package(self, package: str) -> bool:
         """Remove a package from the build directory.
 
