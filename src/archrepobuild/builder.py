@@ -206,6 +206,8 @@ class Builder:
         """Async context manager entry."""
         if self.config.building.parallel:
             max_workers = self.config.building.max_workers
+            if max_workers == 0:
+                max_workers = os.cpu_count() or 1
             self._executor = ProcessPoolExecutor(max_workers=max_workers)
             logger.info(f"Builder initialized with {max_workers} workers (parallel)")
         else:

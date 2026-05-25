@@ -20,7 +20,7 @@ class BuildingConfig(BaseModel):
     """Build settings."""
 
     parallel: bool = Field(default=True, description="Enable parallel builds")
-    max_workers: int = Field(default=4, ge=1, le=32, description="Maximum parallel workers")
+    max_workers: int = Field(default=4, ge=0, description="Maximum parallel workers (0 = number of CPUs)")
     clean: bool = Field(default=True, description="Clean build directory after build")
     update_system: bool = Field(default=False, description="Update system before building")
     retry_attempts: int = Field(default=3, ge=1, le=10, description="Retry attempts on failure")

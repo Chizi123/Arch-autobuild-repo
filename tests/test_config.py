@@ -40,10 +40,10 @@ class TestConfig:
 
     def test_max_workers_validation(self):
         """Test max_workers bounds."""
+        config = BuildingConfig(max_workers=0)
+        assert config.max_workers == 0
         with pytest.raises(ValueError):
-            BuildingConfig(max_workers=0)
-        with pytest.raises(ValueError):
-            BuildingConfig(max_workers=100)
+            BuildingConfig(max_workers=-1)
 
     def test_log_level_validation(self):
         """Test log level validation."""
