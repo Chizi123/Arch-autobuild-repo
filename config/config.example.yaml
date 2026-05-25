@@ -47,6 +47,9 @@ notifications:
     to: ""
     # Sender email address
     from: "archrepobuild@localhost"
+    # Hostname to identify the build machine in notifications
+    # (defaults to system hostname if left empty)
+    host: ""
     # SMTP server settings
     smtp_host: "localhost"
     smtp_port: 25

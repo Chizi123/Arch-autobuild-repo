@@ -2,6 +2,7 @@
 
 import asyncio
 import smtplib
+import socket
 import ssl
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -83,8 +84,10 @@ class EmailBackend(NotificationBackend):
         Returns:
             Formatted message string
         """
+        host = self.config.host or socket.gethostname()
         lines = [
             f"Build Report for {repo_name}",
+            f"Host: {host}",
             f"Time: {summary.timestamp.strftime('%Y-%m-%d %H:%M:%S')}",
             "",
             f"Total packages: {summary.total}",

@@ -41,6 +41,7 @@ class EmailConfig(BaseModel):
     email_everytime: bool = Field(default=False, description="Send email every time the script is run")
     to: str = Field(default="", description="Recipient email address")
     from_addr: str = Field(default="", alias="from", description="Sender email address")
+    host: str = Field(default="", description="Hostname to identify the build machine in notifications")
     smtp_host: str = Field(default="localhost", description="SMTP server host")
     smtp_port: int = Field(default=25, description="SMTP server port")
     use_tls: bool = Field(default=False, description="Use TLS for SMTP")
