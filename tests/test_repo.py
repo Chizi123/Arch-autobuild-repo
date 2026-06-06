@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from archrepobuild.builder import BuildResult, BuildStatus
 from archrepobuild.config import (
     BuildingConfig,
     Config,
@@ -59,6 +60,18 @@ def _create_package_dir(build_dir: Path, name: str, mtime_offset: float = 0) -> 
     atime = time.time() + mtime_offset
     os.utime(pkg_dir, (atime, atime))
     return pkg_dir
+
+
+def _create_package_file(repo_dir: Path, name: str, version: str,
+                         mtime_offset: float = 0) -> Path:
+    """Helper to create a fake .pkg.tar.zst file with proper naming."""
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{name}-{version}-x86_64.pkg.tar.zst"
+    pkg_file = repo_dir / filename
+    pkg_file.write_text("fake package")
+    atime = time.time() + mtime_offset
+    os.utime(pkg_file, (atime, atime))
+    return pkg_file
 
 
 class TestCleanupBuildDir:
@@ -205,22 +218,133 @@ class TestCleanup:
         assert total == 0
 
 
-class TestCleanupBuildDirFullIntegration:
-    """End-to-end tests exercising the real _cleanup_build_dir logic."""
+class TestCleanupFullRealIntegration:
+    """End-to-end test with real files in both repo and build dirs."""
 
-    def test_real_cleanup_via_cleanup_command(self, mock_config):
-        """Verify cleanup() calls the real _cleanup_build_dir with real dirs."""
-        mock_config.retention.max_build_packages = 2
+    def test_cleanup_removes_old_from_both_dirs(self, mock_config):
+        """cleanup() real execution: removes old repo versions AND old build dirs."""
+        mock_config.retention.keep_versions = 1
+        mock_config.retention.max_build_packages = 1
         manager = RepoManager(mock_config)
+        repo_dir = mock_config.repository.path
         build_dir = mock_config.repository.build_dir
 
+        # Create repo package files (2 versions of pkg-a, 1 version of pkg-b)
+        _create_package_file(repo_dir, "pkg-a", "1.0-1", mtime_offset=-100)
+        _create_package_file(repo_dir, "pkg-a", "2.0-1", mtime_offset=0)
+        _create_package_file(repo_dir, "pkg-b", "1.0-1", mtime_offset=0)
+
+        # Create build dirs (2 dirs, limit is 1)
         _create_package_dir(build_dir, "pkg-a", mtime_offset=-100)
         _create_package_dir(build_dir, "pkg-b", mtime_offset=0)
 
-        with patch.object(manager, "list_packages", return_value=[]):
-            with patch.object(manager, "_remove_old_packages", return_value=0):
-                total = manager.cleanup()
+        total = manager.cleanup()
 
-        assert total == 0  # 2 dirs == max_build_packages, nothing removed
-        assert (build_dir / "pkg-a").exists()
+        assert total == 2
+        # repo: pkg-a 1.0 should be removed, pkg-a 2.0 kept, pkg-b 1.0 kept
+        assert not (repo_dir / "pkg-a-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (repo_dir / "pkg-a-2.0-1-x86_64.pkg.tar.zst").exists()
+        assert (repo_dir / "pkg-b-1.0-1-x86_64.pkg.tar.zst").exists()
+        # build: pkg-a should be removed (oldest), pkg-b kept
+        assert not (build_dir / "pkg-a").exists()
         assert (build_dir / "pkg-b").exists()
+
+    def test_cleanup_removes_nothing_when_under_limits(self, mock_config):
+        """cleanup() real execution: nothing removed when under both limits."""
+        mock_config.retention.keep_versions = 3
+        mock_config.retention.max_build_packages = 3
+        manager = RepoManager(mock_config)
+        repo_dir = mock_config.repository.path
+        build_dir = mock_config.repository.build_dir
+
+        _create_package_file(repo_dir, "pkg-a", "1.0-1", mtime_offset=0)
+        _create_package_dir(build_dir, "pkg-a", mtime_offset=0)
+
+        total = manager.cleanup()
+
+        assert total == 0
+        assert (repo_dir / "pkg-a-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (build_dir / "pkg-a").exists()
+
+
+class TestAddPackagesWiring:
+    """Tests that add_packages wires _cleanup_build_dir correctly."""
+
+    def _make_artifact(self, build_dir, name, version):
+        """Create a fake artifact for use as a BuildResult artifact."""
+        pkg_dir = build_dir / name
+        pkg_dir.mkdir(parents=True, exist_ok=True)
+        filename = f"{name}-{version}-x86_64.pkg.tar.zst"
+        artifact = pkg_dir / filename
+        artifact.write_text("fake")
+        return artifact
+
+    def test_calls_cleanup_build_dir_when_cleanup_on_build(self, mock_config):
+        """_cleanup_build_dir called when cleanup_on_build=True."""
+        mock_config.retention.cleanup_on_build = True
+        mock_config.retention.max_build_packages = 5
+        manager = RepoManager(mock_config)
+
+        artifact = self._make_artifact(
+            mock_config.repository.build_dir, "test-pkg", "1.0-1"
+        )
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.SUCCESS,
+            artifacts=[artifact],
+        )
+
+        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
+            with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
+                with patch.object(manager, "_remove_old_packages"):
+                    manager.add_packages(result)
+
+        mock_cleanup.assert_called_once_with()
+
+    def test_skips_cleanup_build_dir_when_not_configured(self, mock_config):
+        """_cleanup_build_dir not called when cleanup_on_build=False."""
+        mock_config.retention.cleanup_on_build = False
+        manager = RepoManager(mock_config)
+
+        artifact = self._make_artifact(
+            mock_config.repository.build_dir, "test-pkg", "1.0-1"
+        )
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.SUCCESS,
+            artifacts=[artifact],
+        )
+
+        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
+            with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
+                with patch.object(manager, "_remove_old_packages"):
+                    manager.add_packages(result)
+
+        mock_cleanup.assert_not_called()
+
+    def test_skipped_when_build_not_successful(self, mock_config):
+        """_cleanup_build_dir not called when build failed."""
+        manager = RepoManager(mock_config)
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.FAILED,
+        )
+
+        with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
+            manager.add_packages(result)
+
+        mock_cleanup.assert_not_called()
+
+    def test_skipped_when_no_artifacts(self, mock_config):
+        """_cleanup_build_dir not called when there are no artifacts."""
+        manager = RepoManager(mock_config)
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.SUCCESS,
+            artifacts=[],
+        )
+
+        with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
+            manager.add_packages(result)
+
+        mock_cleanup.assert_not_called()
