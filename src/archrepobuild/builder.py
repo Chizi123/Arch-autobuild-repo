@@ -424,11 +424,48 @@ class Builder:
         """
         # Update system if configured
         if self.config.building.update_system:
+            reboot_on_critical = self.config.building.reboot_on_critical_updates
+            critical_pkgs = self.config.building.critical_packages
+            installed_before = {}
+
+            if reboot_on_critical and critical_pkgs:
+                logger.info("Checking versions of critical packages before system update...")
+                for pkg in critical_pkgs:
+                    res = subprocess.run(["pacman", "-Q", pkg], capture_output=True, text=True)
+                    if res.returncode == 0:
+                        parts = res.stdout.strip().split()
+                        if len(parts) >= 2:
+                            installed_before[pkg] = parts[1]
+
             logger.info("Updating system...")
             subprocess.run(
                 ["sudo", "pacman", "-Syu", "--noconfirm"],
                 check=False,
             )
+
+            if reboot_on_critical and installed_before:
+                logger.info("Checking versions of critical packages after system update...")
+                reboot_needed = False
+                updated_packages = []
+                for pkg, old_ver in installed_before.items():
+                    res = subprocess.run(["pacman", "-Q", pkg], capture_output=True, text=True)
+                    if res.returncode == 0:
+                        parts = res.stdout.strip().split()
+                        if len(parts) >= 2:
+                            new_ver = parts[1]
+                            if old_ver != new_ver:
+                                reboot_needed = True
+                                updated_packages.append(f"{pkg} ({old_ver} -> {new_ver})")
+                
+                if reboot_needed:
+                    logger.warning(
+                        f"Critical packages were updated: {', '.join(updated_packages)}. "
+                        "Rebooting system as configured..."
+                    )
+                    # Trigger reboot and exit immediately to prevent any package builds
+                    subprocess.run(["sudo", "reboot"], check=False)
+                    import sys
+                    sys.exit(0)
 
         # Find all packages
         build_dir = self.config.repository.build_dir

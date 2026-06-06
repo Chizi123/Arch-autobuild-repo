@@ -25,6 +25,15 @@ class BuildingConfig(BaseModel):
     update_system: bool = Field(default=False, description="Update system before building")
     retry_attempts: int = Field(default=3, ge=1, le=10, description="Retry attempts on failure")
     retry_delay: int = Field(default=5, ge=1, description="Base delay between retries (seconds)")
+    reboot_on_critical_updates: bool = Field(default=False, description="Reboot system if critical packages are updated")
+    critical_packages: list[str] = Field(
+        default_factory=lambda: [
+            "linux", "linux-lts", "linux-zen", "linux-hardened", "systemd", "glibc",
+            "intel-ucode", "amd-ucode", "nvidia", "nvidia-lts", "nvidia-dkms",
+            "mesa", "openssl", "grub", "sudo", "pacman"
+        ],
+        description="List of critical packages that trigger a reboot on update"
+    )
 
 
 class SigningConfig(BaseModel):
