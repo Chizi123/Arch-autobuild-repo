@@ -78,6 +78,7 @@ class PackageRetentionConfig(BaseModel):
 
     keep_versions: int = Field(default=3, ge=1, le=100, description="Number of old versions to keep")
     cleanup_on_build: bool = Field(default=True, description="Clean old versions after build")
+    max_build_packages: int = Field(default=0, ge=0, description="Maximum number of package directories in build dir (0 = no limit)")
 
 
 class PackageOverride(BaseModel):

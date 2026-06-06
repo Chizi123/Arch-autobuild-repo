@@ -184,6 +184,10 @@ class RepoManager:
             for (name, arch) in latest_artifacts.keys():
                 self._remove_old_packages(name)
 
+            # Clean up build dir if configured
+            if self.config.retention.cleanup_on_build:
+                self._cleanup_build_dir()
+
             added_names = [f.name for f in copied_files]
             logger.info(f"Added to repository: {', '.join(added_names)}")
             return added_names
@@ -327,6 +331,41 @@ class RepoManager:
             logger.info(f"Database rebuilt with {len(packages)} packages")
             return True
 
+    def _cleanup_build_dir(self) -> int:
+        """Remove old package directories from build dir exceeding the limit.
+
+        Returns:
+            Number of directories removed
+        """
+        max_pkgs = self.config.retention.max_build_packages
+        if max_pkgs <= 0:
+            return 0
+
+        build_dir = self.config.repository.build_dir
+        if not build_dir.exists():
+            return 0
+
+        dirs = [
+            d for d in build_dir.iterdir()
+            if d.is_dir() and not d.name.startswith(".") and d.name != "downloads"
+        ]
+
+        if len(dirs) <= max_pkgs:
+            return 0
+
+        dirs.sort(key=lambda d: d.stat().st_mtime)
+
+        to_remove = dirs[:-max_pkgs]
+        removed = 0
+        for d in to_remove:
+            shutil.rmtree(d)
+            removed += 1
+
+        if removed:
+            logger.info(f"Cleaned up {removed} old package director(ies) from build dir")
+
+        return removed
+
     def cleanup(self) -> int:
         """Run cleanup on all packages, removing old versions.
 
@@ -340,6 +379,8 @@ class RepoManager:
         total_removed = 0
         for name in unique_names:
             total_removed += self._remove_old_packages(name)
+
+        total_removed += self._cleanup_build_dir()
 
         return total_removed
 

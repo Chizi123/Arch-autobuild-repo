@@ -36,6 +36,8 @@ retention:
   keep_versions: 3
   # Automatically clean old versions after build
   cleanup_on_build: true
+  # Maximum number of package directories to keep in build dir (0 = no limit)
+  max_build_packages: 0
 
 notifications:
   email:

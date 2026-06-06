@@ -275,7 +275,7 @@ def cleanup(ctx: Context) -> None:
     repo = RepoManager(config)
 
     removed = repo.cleanup()
-    console.print(f"[green]Removed {removed} old package version(s)[/]")
+    console.print(f"[green]Removed {removed} old package(s)[/]")
 
 
 @cli.command("list")
