@@ -20,6 +20,13 @@ building:
   clean: true
   # Update system before building (sudo pacman -Syu)
   update_system: false
+  # Reboot system if critical packages are updated (requires update_system: true)
+  reboot_on_critical_updates: false
+  # Packages whose update triggers a reboot (default list covers kernel, systemd, glibc, etc.)
+  # critical_packages:
+  #   - linux
+  #   - systemd
+  #   - glibc
   # Number of retry attempts on build failure
   retry_attempts: 3
   # Base delay between retries in seconds (exponential backoff)
