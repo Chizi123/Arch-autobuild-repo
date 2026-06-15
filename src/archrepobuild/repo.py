@@ -181,12 +181,9 @@ class RepoManager:
                 return []
 
             # Clean up old versions in repo for each package name added
-            for (name, arch) in latest_artifacts.keys():
-                self._remove_old_packages(name)
-
-            # Clean up build dir if configured
             if self.config.retention.cleanup_on_build:
-                self._cleanup_build_dir()
+                for (name, arch) in latest_artifacts.keys():
+                    self._remove_old_packages(name)
 
             added_names = [f.name for f in copied_files]
             logger.info(f"Added to repository: {', '.join(added_names)}")

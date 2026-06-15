@@ -268,7 +268,7 @@ class TestCleanupFullRealIntegration:
 
 
 class TestAddPackagesWiring:
-    """Tests that add_packages wires _cleanup_build_dir correctly."""
+    """Tests for add_packages wiring of retention and cleanup."""
 
     def _make_artifact(self, build_dir, name, version):
         """Create a fake artifact for use as a BuildResult artifact."""
@@ -279,72 +279,194 @@ class TestAddPackagesWiring:
         artifact.write_text("fake")
         return artifact
 
-    def test_calls_cleanup_build_dir_when_cleanup_on_build(self, mock_config):
-        """_cleanup_build_dir called when cleanup_on_build=True."""
-        mock_config.retention.cleanup_on_build = True
-        mock_config.retention.max_build_packages = 5
-        manager = RepoManager(mock_config)
-
+    def _call_add_packages(self, manager, name, version, status=BuildStatus.SUCCESS):
+        """Helper to call add_packages with a fake build result."""
         artifact = self._make_artifact(
-            mock_config.repository.build_dir, "test-pkg", "1.0-1"
+            manager.config.repository.build_dir, name, version
         )
         result = BuildResult(
-            package="test-pkg",
-            status=BuildStatus.SUCCESS,
+            package=name,
+            status=status,
             artifacts=[artifact],
         )
-
         with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
-            with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
-                with patch.object(manager, "_remove_old_packages"):
-                    manager.add_packages(result)
+            return manager.add_packages(result)
 
-        mock_cleanup.assert_called_once_with()
+    def test_remove_old_packages_called_when_cleanup_on_build(self, mock_config):
+        """_remove_old_packages called for built package when cleanup_on_build=True."""
+        mock_config.retention.cleanup_on_build = True
+        manager = RepoManager(mock_config)
 
-    def test_skips_cleanup_build_dir_when_not_configured(self, mock_config):
-        """_cleanup_build_dir not called when cleanup_on_build=False."""
+        with patch.object(manager, "_remove_old_packages") as mock_rm:
+            self._call_add_packages(manager, "test-pkg", "1.0-1")
+
+        mock_rm.assert_called_once_with("test-pkg")
+
+    def test_remove_old_packages_skipped_when_not_configured(self, mock_config):
+        """_remove_old_packages skipped when cleanup_on_build=False."""
         mock_config.retention.cleanup_on_build = False
         manager = RepoManager(mock_config)
 
-        artifact = self._make_artifact(
-            mock_config.repository.build_dir, "test-pkg", "1.0-1"
-        )
-        result = BuildResult(
-            package="test-pkg",
-            status=BuildStatus.SUCCESS,
-            artifacts=[artifact],
-        )
+        with patch.object(manager, "_remove_old_packages") as mock_rm:
+            self._call_add_packages(manager, "test-pkg", "1.0-1")
 
-        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
-            with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
-                with patch.object(manager, "_remove_old_packages"):
-                    manager.add_packages(result)
+        mock_rm.assert_not_called()
+
+    def test_never_calls_cleanup_build_dir(self, mock_config):
+        """_cleanup_build_dir is never called from add_packages (only via explicit cleanup)."""
+        mock_config.retention.cleanup_on_build = True
+        manager = RepoManager(mock_config)
+
+        with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
+            self._call_add_packages(manager, "test-pkg", "1.0-1")
 
         mock_cleanup.assert_not_called()
 
     def test_skipped_when_build_not_successful(self, mock_config):
-        """_cleanup_build_dir not called when build failed."""
+        """Neither cleanup method called when build failed."""
         manager = RepoManager(mock_config)
-        result = BuildResult(
-            package="test-pkg",
-            status=BuildStatus.FAILED,
-        )
+        result = BuildResult(package="test-pkg", status=BuildStatus.FAILED)
 
         with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
-            manager.add_packages(result)
+            with patch.object(manager, "_remove_old_packages") as mock_rm:
+                manager.add_packages(result)
 
         mock_cleanup.assert_not_called()
+        mock_rm.assert_not_called()
 
     def test_skipped_when_no_artifacts(self, mock_config):
-        """_cleanup_build_dir not called when there are no artifacts."""
+        """Neither cleanup method called when there are no artifacts."""
         manager = RepoManager(mock_config)
+        result = BuildResult(package="test-pkg", status=BuildStatus.SUCCESS, artifacts=[])
+
+        with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
+            with patch.object(manager, "_remove_old_packages") as mock_rm:
+                manager.add_packages(result)
+
+        mock_cleanup.assert_not_called()
+        mock_rm.assert_not_called()
+
+
+class TestAddPackagesRealCleanup:
+    """Real _remove_old_packages execution through add_packages."""
+
+    def test_add_packages_removes_old_versions(self, mock_config):
+        """add_packages runs real _remove_old_packages on the built package."""
+        mock_config.retention.cleanup_on_build = True
+        mock_config.retention.keep_versions = 1
+        manager = RepoManager(mock_config)
+        repo_dir = mock_config.repository.path
+
+        # Pre-create old versions directly in repo dir (as if they existed before)
+        _create_package_file(repo_dir, "test-pkg", "1.0-1", mtime_offset=-100)
+        _create_package_file(repo_dir, "test-pkg", "2.0-1", mtime_offset=-50)
+
+        # Build result with a newer artifact
+        build_dir = mock_config.repository.build_dir
+        artifact = build_dir / "test-pkg" / "test-pkg-3.0-1-x86_64.pkg.tar.zst"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text("new package")
+
         result = BuildResult(
             package="test-pkg",
             status=BuildStatus.SUCCESS,
-            artifacts=[],
+            artifacts=[artifact],
         )
 
-        with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
+        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
+            added = manager.add_packages(result)
+
+        # Only the most recent version should remain (3.0 kept, 2.0 removed)
+        assert not (repo_dir / "test-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert not (repo_dir / "test-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
+        assert (repo_dir / "test-pkg-3.0-1-x86_64.pkg.tar.zst").exists()
+        assert added == ["test-pkg-3.0-1-x86_64.pkg.tar.zst"]
+
+    def test_add_packages_keeps_all_when_under_limit(self, mock_config):
+        """add_packages keeps all old versions when under keep_versions limit."""
+        mock_config.retention.cleanup_on_build = True
+        mock_config.retention.keep_versions = 3
+        manager = RepoManager(mock_config)
+        repo_dir = mock_config.repository.path
+
+        # One pre-existing version
+        _create_package_file(repo_dir, "test-pkg", "1.0-1", mtime_offset=-50)
+
+        # Newer artifact
+        build_dir = mock_config.repository.build_dir
+        artifact = build_dir / "test-pkg" / "test-pkg-2.0-1-x86_64.pkg.tar.zst"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text("new package")
+
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.SUCCESS,
+            artifacts=[artifact],
+        )
+
+        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
             manager.add_packages(result)
 
-        mock_cleanup.assert_not_called()
+        # Both versions should be kept (2 total <= keep_versions=3)
+        assert (repo_dir / "test-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (repo_dir / "test-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
+
+    def test_add_packages_does_not_clean_when_cleanup_off(self, mock_config):
+        """add_packages does not remove old versions when cleanup_on_build=False."""
+        mock_config.retention.cleanup_on_build = False
+        mock_config.retention.keep_versions = 1
+        manager = RepoManager(mock_config)
+        repo_dir = mock_config.repository.path
+
+        # Pre-existing old version
+        _create_package_file(repo_dir, "test-pkg", "1.0-1", mtime_offset=-100)
+
+        # Newer artifact
+        build_dir = mock_config.repository.build_dir
+        artifact = build_dir / "test-pkg" / "test-pkg-2.0-1-x86_64.pkg.tar.zst"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text("new package")
+
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.SUCCESS,
+            artifacts=[artifact],
+        )
+
+        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
+            manager.add_packages(result)
+
+        # Old version should still exist since cleanup_on_build=False
+        assert (repo_dir / "test-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (repo_dir / "test-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
+
+    def test_add_packages_cleans_only_built_package(self, mock_config):
+        """add_packages only removes old versions of the built package, not others."""
+        mock_config.retention.cleanup_on_build = True
+        mock_config.retention.keep_versions = 1
+        manager = RepoManager(mock_config)
+        repo_dir = mock_config.repository.path
+
+        # Pre-existing versions of different packages
+        _create_package_file(repo_dir, "other-pkg", "1.0-1", mtime_offset=-100)
+        _create_package_file(repo_dir, "other-pkg", "2.0-1", mtime_offset=0)
+
+        # Build artifact for a different package
+        build_dir = mock_config.repository.build_dir
+        artifact = build_dir / "test-pkg" / "test-pkg-1.0-1-x86_64.pkg.tar.zst"
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_text("new package")
+
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.SUCCESS,
+            artifacts=[artifact],
+        )
+
+        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
+            manager.add_packages(result)
+
+        # other-pkg versions should not be touched
+        assert (repo_dir / "other-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (repo_dir / "other-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
+        assert (repo_dir / "test-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
