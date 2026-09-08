@@ -23,6 +23,7 @@ class BuildingConfig(BaseModel):
     max_workers: int = Field(default=4, ge=0, description="Maximum parallel workers (0 = number of CPUs)")
     clean: bool = Field(default=True, description="Clean build directory after build")
     update_system: bool = Field(default=False, description="Update system before building")
+    clear_pacman_cache: bool = Field(default=False, description="Clear pacman package cache after system update")
     retry_attempts: int = Field(default=3, ge=1, le=10, description="Retry attempts on failure")
     retry_delay: int = Field(default=5, ge=1, description="Base delay between retries (seconds)")
     reboot_on_critical_updates: bool = Field(default=False, description="Reboot system if critical packages are updated")

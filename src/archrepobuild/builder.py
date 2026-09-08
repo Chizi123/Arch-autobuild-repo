@@ -443,6 +443,13 @@ class Builder:
                 check=False,
             )
 
+            if self.config.building.clear_pacman_cache:
+                logger.info("Clearing pacman package cache...")
+                subprocess.run(
+                    ["sudo", "pacman", "-Sc", "--noconfirm"],
+                    check=False,
+                )
+
             if reboot_on_critical and installed_before:
                 logger.info("Checking versions of critical packages after system update...")
                 reboot_needed = False

@@ -20,6 +20,8 @@ building:
   clean: true
   # Update system before building (sudo pacman -Syu)
   update_system: false
+  # Clear pacman package cache after system update (sudo pacman -Sc)
+  clear_pacman_cache: false
   # Reboot system if critical packages are updated (requires update_system: true)
   reboot_on_critical_updates: false
   # Packages whose update triggers a reboot (default list covers kernel, systemd, glibc, etc.)

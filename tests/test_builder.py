@@ -99,6 +99,48 @@ class TestBuilderBuildAllReboot:
 
     @pytest.mark.asyncio
     @patch("archrepobuild.builder.subprocess.run")
+    @patch("sys.exit")
+    async def test_clear_pacman_cache_after_update(self, mock_exit, mock_run, mock_config, mock_aur_client):
+        """Test build_all runs pacman -Sc when clear_pacman_cache is enabled."""
+        mock_config.building.update_system = True
+        mock_config.building.clear_pacman_cache = True
+
+        mock_res_update = MagicMock()
+        mock_res_update.returncode = 0
+
+        mock_res_clean = MagicMock()
+        mock_res_clean.returncode = 0
+
+        mock_run.side_effect = [mock_res_update, mock_res_clean]
+
+        builder = Builder(mock_config, mock_aur_client)
+        with patch("pathlib.Path.iterdir", return_value=[]):
+            results = await builder.build_all()
+            assert results == []
+
+        mock_run.assert_any_call(["sudo", "pacman", "-Syu", "--noconfirm"], check=False)
+        mock_run.assert_any_call(["sudo", "pacman", "-Sc", "--noconfirm"], check=False)
+
+    @pytest.mark.asyncio
+    @patch("archrepobuild.builder.subprocess.run")
+    async def test_no_cache_clear_by_default(self, mock_run, mock_config, mock_aur_client):
+        """Test build_all does not run pacman -Sc when clear_pacman_cache is disabled."""
+        mock_config.building.update_system = True
+
+        mock_res_update = MagicMock()
+        mock_res_update.returncode = 0
+
+        mock_run.side_effect = [mock_res_update]
+
+        builder = Builder(mock_config, mock_aur_client)
+        with patch("pathlib.Path.iterdir", return_value=[]):
+            results = await builder.build_all()
+            assert results == []
+
+        assert not any("Sc" in str(arg) for arg in mock_run.call_args_list)
+
+    @pytest.mark.asyncio
+    @patch("archrepobuild.builder.subprocess.run")
     async def test_build_all_no_reboot_on_no_changes(self, mock_run, mock_config, mock_aur_client):
         """Test build_all does not reboot if critical packages do not change."""
         mock_config.building.update_system = True

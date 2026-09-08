@@ -38,6 +38,7 @@ class TestConfig:
         assert config.clean is True
         assert config.retry_attempts == 3
         assert config.reboot_on_critical_updates is False
+        assert config.clear_pacman_cache is False
         assert isinstance(config.critical_packages, list)
         assert "linux" in config.critical_packages
         assert "systemd" in config.critical_packages
