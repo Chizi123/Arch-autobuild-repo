@@ -27,6 +27,7 @@ htmlcov/
 # Project Specific
 config.yaml
 repo/
+priv.key
 waitlist*
 errorfile
 logs/
