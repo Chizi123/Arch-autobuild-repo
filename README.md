@@ -102,12 +102,16 @@ building:
 
 retention:
   keep_versions: 3
+  # Remove downloaded source archives from build dir (AppImages, tar.gz, deb, etc.)
+  clean_sources: false
 
 notifications:
   email:
     enabled: true
     to: "admin@example.com"
 ```
+
+> **Note:** Build directories are never removed automatically — the `cleanup` command only prunes old repo versions, old build artifacts, and (optionally) stale source archives. To delete a package's build directory, use `archrepobuild remove <package>`.
 
 ## Migration from Bash Version
 

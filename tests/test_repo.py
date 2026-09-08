@@ -1,6 +1,7 @@
 """Tests for RepoManager, specifically build directory cleanup."""
 
 import os
+import subprocess
 import time
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -41,7 +42,6 @@ def mock_config(tmp_path):
         retention=PackageRetentionConfig(
             keep_versions=3,
             cleanup_on_build=True,
-            max_build_packages=0,
         ),
     )
 
@@ -89,120 +89,6 @@ def _create_build_artifact(build_dir: Path, name: str, version: str,
         sig = pkg_file.with_suffix(pkg_file.suffix + ".sig")
         sig.write_text("fake sig")
     return pkg_file
-
-
-class TestCleanupBuildDir:
-    """Tests for RepoManager._cleanup_build_dir."""
-
-    def test_disabled_when_zero(self, repo_manager):
-        """max_build_packages=0 means no cleanup."""
-        repo_manager.config.retention.max_build_packages = 0
-        _create_package_dir(repo_manager.config.repository.build_dir, "pkg-a")
-        _create_package_dir(repo_manager.config.repository.build_dir, "pkg-b")
-
-        result = repo_manager._cleanup_build_dir()
-
-        assert result == 0
-        assert (repo_manager.config.repository.build_dir / "pkg-a").exists()
-        assert (repo_manager.config.repository.build_dir / "pkg-b").exists()
-
-    def test_no_build_dir(self, repo_manager):
-        """Non-existent build dir is handled gracefully."""
-        repo_manager.config.retention.max_build_packages = 5
-        result = repo_manager._cleanup_build_dir()
-        assert result == 0
-
-    def test_under_limit_keeps_all(self, repo_manager):
-        """Fewer dirs than limit means nothing is removed."""
-        repo_manager.config.retention.max_build_packages = 5
-        build_dir = repo_manager.config.repository.build_dir
-        _create_package_dir(build_dir, "pkg-a")
-        _create_package_dir(build_dir, "pkg-b")
-        _create_package_dir(build_dir, "pkg-c")
-
-        result = repo_manager._cleanup_build_dir()
-
-        assert result == 0
-        assert len(list(build_dir.iterdir())) == 3
-
-    def test_removes_oldest_when_over_limit(self, repo_manager):
-        """Oldest directories are removed when count exceeds max_build_packages."""
-        repo_manager.config.retention.max_build_packages = 2
-        build_dir = repo_manager.config.repository.build_dir
-        _create_package_dir(build_dir, "oldest", mtime_offset=-100)
-        _create_package_dir(build_dir, "middle", mtime_offset=-50)
-        _create_package_dir(build_dir, "newest", mtime_offset=0)
-
-        result = repo_manager._cleanup_build_dir()
-
-        assert result == 1
-        assert not (build_dir / "oldest").exists()
-        assert (build_dir / "middle").exists()
-        assert (build_dir / "newest").exists()
-
-    def test_removes_multiple_when_way_over_limit(self, repo_manager):
-        """All excess directories are removed, keeping only the most recent N."""
-        repo_manager.config.retention.max_build_packages = 2
-        build_dir = repo_manager.config.repository.build_dir
-        _create_package_dir(build_dir, "pkg-a", mtime_offset=-100)
-        _create_package_dir(build_dir, "pkg-b", mtime_offset=-80)
-        _create_package_dir(build_dir, "pkg-c", mtime_offset=-40)
-        _create_package_dir(build_dir, "pkg-d", mtime_offset=0)
-
-        result = repo_manager._cleanup_build_dir()
-
-        assert result == 2
-        assert not (build_dir / "pkg-a").exists()
-        assert not (build_dir / "pkg-b").exists()
-        assert (build_dir / "pkg-c").exists()
-        assert (build_dir / "pkg-d").exists()
-
-    def test_skips_dot_prefixed(self, repo_manager):
-        """Directories starting with '.' are not counted or removed."""
-        repo_manager.config.retention.max_build_packages = 1
-        build_dir = repo_manager.config.repository.build_dir
-        _create_package_dir(build_dir, ".locks", mtime_offset=-100)
-        _create_package_dir(build_dir, ".hidden", mtime_offset=-80)
-        _create_package_dir(build_dir, "real-pkg", mtime_offset=0)
-
-        result = repo_manager._cleanup_build_dir()
-
-        assert result == 0  # 1 real pkg == max, so nothing removed
-        assert (build_dir / ".locks").exists()
-        assert (build_dir / ".hidden").exists()
-        assert (build_dir / "real-pkg").exists()
-
-    def test_skips_downloads_dir(self, repo_manager):
-        """The 'downloads' directory is not counted or removed."""
-        repo_manager.config.retention.max_build_packages = 1
-        build_dir = repo_manager.config.repository.build_dir
-        _create_package_dir(build_dir, "downloads", mtime_offset=-100)
-        _create_package_dir(build_dir, "pkg-a", mtime_offset=-50)
-        _create_package_dir(build_dir, "pkg-b", mtime_offset=0)
-
-        result = repo_manager._cleanup_build_dir()
-
-        assert result == 1  # pkg-a should be removed, downloads stays
-        assert (build_dir / "downloads").exists()
-        assert not (build_dir / "pkg-a").exists()
-        assert (build_dir / "pkg-b").exists()
-
-    def test_keeps_most_recently_modified(self, repo_manager):
-        """mtime sorting determines which directories survive."""
-        repo_manager.config.retention.max_build_packages = 3
-        build_dir = repo_manager.config.repository.build_dir
-        newest = _create_package_dir(build_dir, "pkg-new", mtime_offset=0)
-        oldest = _create_package_dir(build_dir, "pkg-old", mtime_offset=-200)
-        middle = _create_package_dir(build_dir, "pkg-mid", mtime_offset=-100)
-        recent = _create_package_dir(build_dir, "pkg-recent", mtime_offset=-10)
-
-        result = repo_manager._cleanup_build_dir()
-
-        assert result == 1
-        assert not oldest.exists()
-        assert middle.exists()
-        assert recent.exists()
-        assert newest.exists()
 
 
 class TestCleanupBuildDirArtifacts:
@@ -269,14 +155,122 @@ class TestCleanupBuildDirArtifacts:
         assert (build_dir / "emacs-git" / "emacs-git-9.0-1-x86_64.pkg.tar.zst").exists()
 
 
+class TestCleanupBuildDirSources:
+    """Tests for RepoManager._cleanup_build_dir_sources."""
+
+    def _make_pkg_dir(self, repo_manager, name) -> Path:
+        pkg_dir = repo_manager.config.repository.build_dir / name
+        pkg_dir.mkdir(parents=True, exist_ok=True)
+        return pkg_dir
+
+    @patch("archrepobuild.repo.subprocess.run")
+    def test_removes_only_old_sources(self, mock_run, repo_manager):
+        """Sources referenced by the current PKGBUILD are kept, old ones removed."""
+        pkg_dir = self._make_pkg_dir(repo_manager, "beeper-v4-bin")
+        (pkg_dir / ".SRCINFO").write_text(
+            "source = App-2.0.AppImage\n"
+            "source = src-2.0-1.tar.gz\n"
+        )
+        (pkg_dir / "App-2.0.AppImage").write_text("current source")
+        (pkg_dir / "src-2.0-1.tar.gz").write_text("current source")
+        (pkg_dir / "App-1.0.AppImage").write_text("stale source")
+        (pkg_dir / "src-1.0-1.tar.gz").write_text("stale source")
+        (pkg_dir / "PKGBUILD").write_text("# pkgbuild")
+        (pkg_dir / "beeper-v4-bin-2.0-1-x86_64.pkg.tar.zst").write_text("pkg")
+        (pkg_dir / "beeper-v4-bin-2.0-1-x86_64.pkg.tar.zst.sig").write_text("sig")
+
+        mock_run.return_value.stdout = "PKGBUILD\n.SRCINFO\n"
+
+        result = repo_manager._cleanup_build_dir_sources("beeper-v4-bin")
+
+        assert result == 2
+        assert (pkg_dir / "App-2.0.AppImage").exists()
+        assert (pkg_dir / "src-2.0-1.tar.gz").exists()
+        assert not (pkg_dir / "App-1.0.AppImage").exists()
+        assert not (pkg_dir / "src-1.0-1.tar.gz").exists()
+        assert (pkg_dir / "PKGBUILD").exists()
+        assert (pkg_dir / "beeper-v4-bin-2.0-1-x86_64.pkg.tar.zst").exists()
+        assert (pkg_dir / "beeper-v4-bin-2.0-1-x86_64.pkg.tar.zst.sig").exists()
+
+    def test_parses_url_and_rename_sources(self, repo_manager):
+        """URL basenames and name::url rename syntax are resolved from SRCINFO."""
+        pkg_dir = self._make_pkg_dir(repo_manager, "test-pkg")
+        (pkg_dir / ".SRCINFO").write_text(
+            "source = App-3.0.AppImage::https://example.com/download/v3.AppImage\n"
+            "source = https://example.com/cfg-1.0.tar.gz\n"
+            "source = local-file.deb\n"
+        )
+        (pkg_dir / "App-3.0.AppImage").write_text("renamed")
+        (pkg_dir / "cfg-1.0.tar.gz").write_text("from url")
+        (pkg_dir / "local-file.deb").write_text("local")
+        (pkg_dir / "stale.deb").write_text("old")
+
+        with patch("archrepobuild.repo.subprocess.run") as mock_run:
+            mock_run.return_value.stdout = ""
+            result = repo_manager._cleanup_build_dir_sources("test-pkg")
+
+        assert result == 1
+        assert (pkg_dir / "App-3.0.AppImage").exists()
+        assert (pkg_dir / "cfg-1.0.tar.gz").exists()
+        assert (pkg_dir / "local-file.deb").exists()
+        assert not (pkg_dir / "stale.deb").exists()
+
+    @patch("archrepobuild.repo.subprocess.run")
+    def test_keeps_git_tracked_archives(self, mock_run, repo_manager):
+        """Even an archive-named file that is git-tracked is kept."""
+        pkg_dir = self._make_pkg_dir(repo_manager, "test-pkg")
+        (pkg_dir / "vendored.tar.gz").write_text("tracked archive")
+
+        mock_run.return_value.stdout = "vendored.tar.gz\n"
+
+        result = repo_manager._cleanup_build_dir_sources("test-pkg")
+
+        assert result == 0
+        assert (pkg_dir / "vendored.tar.gz").exists()
+
+    @patch("archrepobuild.repo.subprocess.run", side_effect=subprocess.CalledProcessError(128, "git"))
+    def test_handles_non_git_dir(self, mock_run, repo_manager):
+        """Without a git repo, stale archives are still removed; current kept."""
+        pkg_dir = self._make_pkg_dir(repo_manager, "test-pkg")
+        (pkg_dir / ".git").mkdir()
+        (pkg_dir / ".SRCINFO").write_text("source = App-1.0.AppImage\n")
+        (pkg_dir / "App-1.0.AppImage").write_text("current")
+        (pkg_dir / "App-0.9.AppImage").write_text("stale")
+
+        result = repo_manager._cleanup_build_dir_sources("test-pkg")
+
+        assert result == 1
+        assert (pkg_dir / "App-1.0.AppImage").exists()
+        assert not (pkg_dir / "App-0.9.AppImage").exists()
+        assert (pkg_dir / ".git").is_dir()
+
+    def test_missing_srcinfo_removes_all_untracked_archives(self, repo_manager):
+        """Without SRCINFO, all untracked archives are treated as stale."""
+        pkg_dir = self._make_pkg_dir(repo_manager, "test-pkg")
+        (pkg_dir / "PKGBUILD").write_text("# pkgbuild")
+        (pkg_dir / "App-1.0.AppImage").write_text("source")
+
+        with patch("archrepobuild.repo.subprocess.run") as mock_run:
+            mock_run.return_value.stdout = "PKGBUILD\n"
+            result = repo_manager._cleanup_build_dir_sources("test-pkg")
+
+        assert result == 1
+        assert not (pkg_dir / "App-1.0.AppImage").exists()
+        assert (pkg_dir / "PKGBUILD").exists()
+
+    def test_missing_pkg_dir(self, repo_manager):
+        """A package with no build directory is handled gracefully."""
+        result = repo_manager._cleanup_build_dir_sources("nonexistent")
+        assert result == 0
+
+
 class TestCleanup:
     """Tests for RepoManager.cleanup integration."""
 
     @patch.object(RepoManager, "_remove_old_packages", return_value=2)
-    @patch.object(RepoManager, "_cleanup_build_dir", return_value=1)
     @patch.object(RepoManager, "_cleanup_build_dir_artifacts", return_value=3)
     def test_calls_all_cleanup_methods(
-        self, mock_build_artifacts, mock_build_cleanup, mock_repo_cleanup, repo_manager
+        self, mock_build_artifacts, mock_repo_cleanup, repo_manager
     ):
         """cleanup() should call all cleanup methods for each package."""
         mock_pkg = MagicMock()
@@ -284,16 +278,14 @@ class TestCleanup:
         with patch.object(repo_manager, "list_packages", return_value=[mock_pkg]):
             total = repo_manager.cleanup()
 
-        assert total == 6
+        assert total == 5
         mock_repo_cleanup.assert_called_once_with("test-pkg")
         mock_build_artifacts.assert_called_once_with("test-pkg")
-        mock_build_cleanup.assert_called_once_with()
 
     @patch.object(RepoManager, "_remove_old_packages", return_value=0)
-    @patch.object(RepoManager, "_cleanup_build_dir", return_value=0)
     @patch.object(RepoManager, "_cleanup_build_dir_artifacts", return_value=0)
     def test_returns_zero_when_nothing_to_clean(
-        self, mock_build_artifacts, mock_build_cleanup, mock_repo_cleanup, repo_manager
+        self, mock_build_artifacts, mock_repo_cleanup, repo_manager
     ):
         """cleanup() returns 0 when no cleanup is needed."""
         with patch.object(repo_manager, "list_packages", return_value=[]):
@@ -316,14 +308,26 @@ class TestCleanup:
         assert not (build_dir / "only-build-pkg" / "only-build-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
         assert (build_dir / "only-build-pkg" / "only-build-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
 
+    def test_cleanup_calls_sources_when_enabled(self, repo_manager):
+        """cleanup() calls source cleanup for each package when clean_sources is on."""
+        repo_manager.config.retention.clean_sources = True
+        mock_pkg = MagicMock()
+        mock_pkg.name = "test-pkg"
+        with patch.object(repo_manager, "list_packages", return_value=[mock_pkg]):
+            with patch.object(repo_manager, "_remove_old_packages", return_value=0):
+                with patch.object(repo_manager, "_cleanup_build_dir_artifacts", return_value=0):
+                    with patch.object(repo_manager, "_cleanup_build_dir_sources") as mock_sources:
+                        repo_manager.cleanup()
+
+        mock_sources.assert_called_once_with("test-pkg")
+
 
 class TestCleanupFullRealIntegration:
     """End-to-end test with real files in both repo and build dirs."""
 
-    def test_cleanup_removes_old_from_both_dirs(self, mock_config):
-        """cleanup() real execution: removes old repo versions AND old build dirs."""
+    def test_cleanup_removes_old_from_repo_keeps_build_dirs(self, mock_config):
+        """cleanup() removes old repo versions but never removes build dirs."""
         mock_config.retention.keep_versions = 1
-        mock_config.retention.max_build_packages = 1
         manager = RepoManager(mock_config)
         repo_dir = mock_config.repository.path
         build_dir = mock_config.repository.build_dir
@@ -333,25 +337,24 @@ class TestCleanupFullRealIntegration:
         _create_package_file(repo_dir, "pkg-a", "2.0-1", mtime_offset=0)
         _create_package_file(repo_dir, "pkg-b", "1.0-1", mtime_offset=0)
 
-        # Create build dirs (2 dirs, limit is 1)
+        # Create build dirs
         _create_package_dir(build_dir, "pkg-a", mtime_offset=-100)
         _create_package_dir(build_dir, "pkg-b", mtime_offset=0)
 
         total = manager.cleanup()
 
-        assert total == 2
+        assert total == 1
         # repo: pkg-a 1.0 should be removed, pkg-a 2.0 kept, pkg-b 1.0 kept
         assert not (repo_dir / "pkg-a-1.0-1-x86_64.pkg.tar.zst").exists()
         assert (repo_dir / "pkg-a-2.0-1-x86_64.pkg.tar.zst").exists()
         assert (repo_dir / "pkg-b-1.0-1-x86_64.pkg.tar.zst").exists()
-        # build: pkg-a should be removed (oldest), pkg-b kept
-        assert not (build_dir / "pkg-a").exists()
+        # build dirs are never touched by cleanup
+        assert (build_dir / "pkg-a").exists()
         assert (build_dir / "pkg-b").exists()
 
     def test_cleanup_removes_old_artifacts_from_build_dir(self, mock_config):
         """cleanup() real execution: removes old artifacts within a package build dir."""
         mock_config.retention.keep_versions = 1
-        mock_config.retention.max_build_packages = 5
         manager = RepoManager(mock_config)
         repo_dir = mock_config.repository.path
         build_dir = mock_config.repository.build_dir
@@ -368,9 +371,8 @@ class TestCleanupFullRealIntegration:
         assert (build_dir / "emacs-git" / "emacs-git-2.0-1-x86_64.pkg.tar.zst").exists()
 
     def test_cleanup_removes_nothing_when_under_limits(self, mock_config):
-        """cleanup() real execution: nothing removed when under both limits."""
+        """cleanup() real execution: nothing removed when under keep_versions."""
         mock_config.retention.keep_versions = 3
-        mock_config.retention.max_build_packages = 3
         manager = RepoManager(mock_config)
         repo_dir = mock_config.repository.path
         build_dir = mock_config.repository.build_dir
@@ -450,26 +452,45 @@ class TestAddPackagesWiring:
 
         mock_rm.assert_not_called()
 
-    def test_never_calls_cleanup_build_dir(self, mock_config):
-        """_cleanup_build_dir is never called from add_packages (only via explicit cleanup)."""
+    def test_cleanup_sources_called_when_clean_sources_on(self, mock_config):
+        """_cleanup_build_dir_sources called when clean_sources is enabled."""
+        mock_config.retention.cleanup_on_build = True
+        mock_config.retention.clean_sources = True
+        manager = RepoManager(mock_config)
+
+        with patch.object(manager, "_cleanup_build_dir_sources") as mock_clean:
+            self._call_add_packages(manager, "test-pkg", "1.0-1")
+
+        mock_clean.assert_called_once_with("test-pkg")
+
+    def test_cleanup_sources_skipped_when_not_configured(self, mock_config):
+        """_cleanup_build_dir_sources skipped when clean_sources is off."""
+        mock_config.retention.cleanup_on_build = True
+        mock_config.retention.clean_sources = False
+        manager = RepoManager(mock_config)
+
+        with patch.object(manager, "_cleanup_build_dir_sources") as mock_clean:
+            self._call_add_packages(manager, "test-pkg", "1.0-1")
+
+        mock_clean.assert_not_called()
+
+    def test_never_deletes_build_dir(self, mock_config):
+        """add_packages never removes build directories (only the explicit remove command does)."""
         mock_config.retention.cleanup_on_build = True
         manager = RepoManager(mock_config)
 
-        with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
-            self._call_add_packages(manager, "test-pkg", "1.0-1")
+        self._call_add_packages(manager, "test-pkg", "1.0-1")
 
-        mock_cleanup.assert_not_called()
+        assert (manager.config.repository.build_dir / "test-pkg").exists()
 
     def test_skipped_when_build_not_successful(self, mock_config):
         """Neither cleanup method called when build failed."""
         manager = RepoManager(mock_config)
         result = BuildResult(package="test-pkg", status=BuildStatus.FAILED)
 
-        with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
-            with patch.object(manager, "_remove_old_packages") as mock_rm:
-                manager.add_packages(result)
+        with patch.object(manager, "_remove_old_packages") as mock_rm:
+            manager.add_packages(result)
 
-        mock_cleanup.assert_not_called()
         mock_rm.assert_not_called()
 
     def test_skipped_when_no_artifacts(self, mock_config):
@@ -477,11 +498,9 @@ class TestAddPackagesWiring:
         manager = RepoManager(mock_config)
         result = BuildResult(package="test-pkg", status=BuildStatus.SUCCESS, artifacts=[])
 
-        with patch.object(manager, "_cleanup_build_dir") as mock_cleanup:
-            with patch.object(manager, "_remove_old_packages") as mock_rm:
-                manager.add_packages(result)
+        with patch.object(manager, "_remove_old_packages") as mock_rm:
+            manager.add_packages(result)
 
-        mock_cleanup.assert_not_called()
         mock_rm.assert_not_called()
 
 

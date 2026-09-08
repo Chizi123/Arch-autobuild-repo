@@ -45,8 +45,10 @@ retention:
   keep_versions: 3
   # Automatically clean old versions after build
   cleanup_on_build: true
-  # Maximum number of package directories to keep in build dir (0 = no limit)
-  max_build_packages: 0
+  # Remove downloaded source archives from build dir (AppImages, tar.gz, deb, etc.)
+  clean_sources: false
+  # Build directories are NEVER removed automatically (not even by cleanup);
+  # use `archrepobuild remove <package>` to delete a package's build dir.
 
 notifications:
   email:
