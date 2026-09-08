@@ -74,6 +74,23 @@ def _create_package_file(repo_dir: Path, name: str, version: str,
     return pkg_file
 
 
+def _create_build_artifact(build_dir: Path, name: str, version: str,
+                           mtime_offset: float = 0,
+                           create_sig: bool = True) -> Path:
+    """Helper to create a fake built package file inside a package build dir."""
+    pkg_dir = build_dir / name
+    pkg_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"{name}-{version}-x86_64.pkg.tar.zst"
+    pkg_file = pkg_dir / filename
+    pkg_file.write_text("fake package")
+    atime = time.time() + mtime_offset
+    os.utime(pkg_file, (atime, atime))
+    if create_sig:
+        sig = pkg_file.with_suffix(pkg_file.suffix + ".sig")
+        sig.write_text("fake sig")
+    return pkg_file
+
+
 class TestCleanupBuildDir:
     """Tests for RepoManager._cleanup_build_dir."""
 
@@ -188,34 +205,116 @@ class TestCleanupBuildDir:
         assert newest.exists()
 
 
+class TestCleanupBuildDirArtifacts:
+    """Tests for RepoManager._cleanup_build_dir_artifacts."""
+
+    def test_missing_pkg_dir(self, repo_manager):
+        """A package with no build directory is handled gracefully."""
+        result = repo_manager._cleanup_build_dir_artifacts("nonexistent")
+        assert result == 0
+
+    def test_keeps_all_under_limit(self, repo_manager):
+        """Fewer artifacts than keep_versions means nothing is removed."""
+        repo_manager.config.retention.keep_versions = 3
+        build_dir = repo_manager.config.repository.build_dir
+        _create_build_artifact(build_dir, "emacs-git", "1.0-1", mtime_offset=-100)
+        _create_build_artifact(build_dir, "emacs-git", "2.0-1", mtime_offset=0)
+
+        result = repo_manager._cleanup_build_dir_artifacts("emacs-git")
+
+        assert result == 0
+        assert (build_dir / "emacs-git" / "emacs-git-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (build_dir / "emacs-git" / "emacs-git-2.0-1-x86_64.pkg.tar.zst").exists()
+
+    def test_removes_oldest_when_over_limit(self, repo_manager):
+        """Oldest artifacts are removed once the count exceeds keep_versions."""
+        repo_manager.config.retention.keep_versions = 2
+        build_dir = repo_manager.config.repository.build_dir
+        _create_build_artifact(build_dir, "emacs-git", "1.0-1", mtime_offset=-100)
+        _create_build_artifact(build_dir, "emacs-git", "2.0-1", mtime_offset=-50)
+        _create_build_artifact(build_dir, "emacs-git", "3.0-1", mtime_offset=0)
+
+        result = repo_manager._cleanup_build_dir_artifacts("emacs-git")
+
+        assert result == 1
+        assert not (build_dir / "emacs-git" / "emacs-git-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (build_dir / "emacs-git" / "emacs-git-2.0-1-x86_64.pkg.tar.zst").exists()
+        assert (build_dir / "emacs-git" / "emacs-git-3.0-1-x86_64.pkg.tar.zst").exists()
+
+    def test_removes_signatures_with_artifacts(self, repo_manager):
+        """Signature files are removed along with their packages."""
+        repo_manager.config.retention.keep_versions = 1
+        build_dir = repo_manager.config.repository.build_dir
+        _create_build_artifact(build_dir, "emacs-git", "1.0-1", mtime_offset=-100)
+        _create_build_artifact(build_dir, "emacs-git", "2.0-1", mtime_offset=0)
+
+        result = repo_manager._cleanup_build_dir_artifacts("emacs-git")
+
+        assert result == 1
+        assert not (build_dir / "emacs-git" / "emacs-git-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert not (build_dir / "emacs-git" / "emacs-git-1.0-1-x86_64.pkg.tar.zst.sig").exists()
+        assert (build_dir / "emacs-git" / "emacs-git-2.0-1-x86_64.pkg.tar.zst").exists()
+
+    def test_only_matches_exact_package(self, repo_manager):
+        """Artifacts of sub-packages or other packages are not touched."""
+        repo_manager.config.retention.keep_versions = 1
+        build_dir = repo_manager.config.repository.build_dir
+        _create_build_artifact(build_dir, "emacs", "1.0-1", mtime_offset=-100)
+        _create_build_artifact(build_dir, "emacs", "2.0-1", mtime_offset=0)
+        _create_build_artifact(build_dir, "emacs-git", "9.0-1", mtime_offset=0)
+
+        result = repo_manager._cleanup_build_dir_artifacts("emacs")
+
+        assert result == 1
+        assert (build_dir / "emacs-git" / "emacs-git-9.0-1-x86_64.pkg.tar.zst").exists()
+
+
 class TestCleanup:
     """Tests for RepoManager.cleanup integration."""
 
     @patch.object(RepoManager, "_remove_old_packages", return_value=2)
     @patch.object(RepoManager, "_cleanup_build_dir", return_value=1)
-    def test_calls_both_cleanup_methods(
-        self, mock_build_cleanup, mock_repo_cleanup, repo_manager
+    @patch.object(RepoManager, "_cleanup_build_dir_artifacts", return_value=3)
+    def test_calls_all_cleanup_methods(
+        self, mock_build_artifacts, mock_build_cleanup, mock_repo_cleanup, repo_manager
     ):
-        """cleanup() should call both _remove_old_packages and _cleanup_build_dir."""
+        """cleanup() should call all cleanup methods for each package."""
         mock_pkg = MagicMock()
         mock_pkg.name = "test-pkg"
         with patch.object(repo_manager, "list_packages", return_value=[mock_pkg]):
             total = repo_manager.cleanup()
 
-        assert total == 3
+        assert total == 6
         mock_repo_cleanup.assert_called_once_with("test-pkg")
+        mock_build_artifacts.assert_called_once_with("test-pkg")
         mock_build_cleanup.assert_called_once_with()
 
     @patch.object(RepoManager, "_remove_old_packages", return_value=0)
     @patch.object(RepoManager, "_cleanup_build_dir", return_value=0)
+    @patch.object(RepoManager, "_cleanup_build_dir_artifacts", return_value=0)
     def test_returns_zero_when_nothing_to_clean(
-        self, mock_build_cleanup, mock_repo_cleanup, repo_manager
+        self, mock_build_artifacts, mock_build_cleanup, mock_repo_cleanup, repo_manager
     ):
         """cleanup() returns 0 when no cleanup is needed."""
         with patch.object(repo_manager, "list_packages", return_value=[]):
             total = repo_manager.cleanup()
 
         assert total == 0
+
+    def test_cleanup_includes_packages_only_in_build_dir(self, repo_manager):
+        """cleanup() also handles packages that exist only in the build dir."""
+        build_dir = repo_manager.config.repository.build_dir
+        _create_build_artifact(build_dir, "only-build-pkg", "1.0-1", mtime_offset=-100)
+        _create_build_artifact(build_dir, "only-build-pkg", "2.0-1", mtime_offset=0)
+        repo_manager.config.retention.keep_versions = 1
+
+        with patch.object(repo_manager, "list_packages", return_value=[]):
+            with patch.object(repo_manager, "_remove_old_packages", return_value=0):
+                total = repo_manager.cleanup()
+
+        assert total == 1
+        assert not (build_dir / "only-build-pkg" / "only-build-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (build_dir / "only-build-pkg" / "only-build-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
 
 
 class TestCleanupFullRealIntegration:
@@ -248,6 +347,25 @@ class TestCleanupFullRealIntegration:
         # build: pkg-a should be removed (oldest), pkg-b kept
         assert not (build_dir / "pkg-a").exists()
         assert (build_dir / "pkg-b").exists()
+
+    def test_cleanup_removes_old_artifacts_from_build_dir(self, mock_config):
+        """cleanup() real execution: removes old artifacts within a package build dir."""
+        mock_config.retention.keep_versions = 1
+        mock_config.retention.max_build_packages = 5
+        manager = RepoManager(mock_config)
+        repo_dir = mock_config.repository.path
+        build_dir = mock_config.repository.build_dir
+
+        _create_package_file(repo_dir, "emacs-git", "1.0-1", mtime_offset=0)
+        _create_build_artifact(build_dir, "emacs-git", "1.0-1", mtime_offset=-100)
+        _create_build_artifact(build_dir, "emacs-git", "2.0-1", mtime_offset=0)
+
+        total = manager.cleanup()
+
+        assert total == 1
+        # Only the most recent artifact remains in the build dir
+        assert not (build_dir / "emacs-git" / "emacs-git-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (build_dir / "emacs-git" / "emacs-git-2.0-1-x86_64.pkg.tar.zst").exists()
 
     def test_cleanup_removes_nothing_when_under_limits(self, mock_config):
         """cleanup() real execution: nothing removed when under both limits."""
@@ -301,6 +419,26 @@ class TestAddPackagesWiring:
             self._call_add_packages(manager, "test-pkg", "1.0-1")
 
         mock_rm.assert_called_once_with("test-pkg")
+
+    def test_cleanup_build_dir_artifacts_called_when_cleanup_on_build(self, mock_config):
+        """_cleanup_build_dir_artifacts called for built package when cleanup_on_build=True."""
+        mock_config.retention.cleanup_on_build = True
+        manager = RepoManager(mock_config)
+
+        with patch.object(manager, "_cleanup_build_dir_artifacts") as mock_clean:
+            self._call_add_packages(manager, "test-pkg", "1.0-1")
+
+        mock_clean.assert_called_once_with("test-pkg")
+
+    def test_cleanup_build_dir_artifacts_skipped_when_not_configured(self, mock_config):
+        """_cleanup_build_dir_artifacts skipped when cleanup_on_build=False."""
+        mock_config.retention.cleanup_on_build = False
+        manager = RepoManager(mock_config)
+
+        with patch.object(manager, "_cleanup_build_dir_artifacts") as mock_clean:
+            self._call_add_packages(manager, "test-pkg", "1.0-1")
+
+        mock_clean.assert_not_called()
 
     def test_remove_old_packages_skipped_when_not_configured(self, mock_config):
         """_remove_old_packages skipped when cleanup_on_build=False."""
@@ -439,6 +577,56 @@ class TestAddPackagesRealCleanup:
         # Old version should still exist since cleanup_on_build=False
         assert (repo_dir / "test-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
         assert (repo_dir / "test-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
+
+    def test_add_packages_removes_old_build_artifacts(self, mock_config):
+        """add_packages cleans old artifacts in the build dir beyond keep_versions."""
+        mock_config.retention.cleanup_on_build = True
+        mock_config.retention.keep_versions = 1
+        manager = RepoManager(mock_config)
+        build_dir = mock_config.repository.build_dir
+
+        # Pre-create old artifacts for this package in its build dir
+        _create_build_artifact(build_dir, "test-pkg", "1.0-1", mtime_offset=-100)
+        _create_build_artifact(build_dir, "test-pkg", "2.0-1", mtime_offset=-50)
+
+        # Build result with a newer artifact
+        artifact = _create_build_artifact(build_dir, "test-pkg", "3.0-1", mtime_offset=0)
+
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.SUCCESS,
+            artifacts=[artifact],
+        )
+
+        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
+            manager.add_packages(result)
+
+        # Only the most recent artifact remains in the build dir (1.0, 2.0 removed)
+        assert not (build_dir / "test-pkg" / "test-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert not (build_dir / "test-pkg" / "test-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
+        assert (build_dir / "test-pkg" / "test-pkg-3.0-1-x86_64.pkg.tar.zst").exists()
+
+    def test_add_packages_keeps_build_artifacts_when_cleanup_off(self, mock_config):
+        """add_packages does not remove build dir artifacts when cleanup_on_build=False."""
+        mock_config.retention.cleanup_on_build = False
+        mock_config.retention.keep_versions = 1
+        manager = RepoManager(mock_config)
+        build_dir = mock_config.repository.build_dir
+
+        _create_build_artifact(build_dir, "test-pkg", "1.0-1", mtime_offset=-100)
+        artifact = _create_build_artifact(build_dir, "test-pkg", "2.0-1", mtime_offset=0)
+
+        result = BuildResult(
+            package="test-pkg",
+            status=BuildStatus.SUCCESS,
+            artifacts=[artifact],
+        )
+
+        with patch.object(manager, "_run_repo_command", return_value=MagicMock(returncode=0)):
+            manager.add_packages(result)
+
+        assert (build_dir / "test-pkg" / "test-pkg-1.0-1-x86_64.pkg.tar.zst").exists()
+        assert (build_dir / "test-pkg" / "test-pkg-2.0-1-x86_64.pkg.tar.zst").exists()
 
     def test_add_packages_cleans_only_built_package(self, mock_config):
         """add_packages only removes old versions of the built package, not others."""

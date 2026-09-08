@@ -180,10 +180,11 @@ class RepoManager:
                 logger.error(f"Failed to add packages to database: {result.stderr}")
                 return []
 
-            # Clean up old versions in repo for each package name added
+            # Clean up old versions in repo and build dir for each package name added
             if self.config.retention.cleanup_on_build:
                 for (name, arch) in latest_artifacts.keys():
                     self._remove_old_packages(name)
+                    self._cleanup_build_dir_artifacts(name)
 
             added_names = [f.name for f in copied_files]
             logger.info(f"Added to repository: {', '.join(added_names)}")
@@ -328,6 +329,51 @@ class RepoManager:
             logger.info(f"Database rebuilt with {len(packages)} packages")
             return True
 
+    def _cleanup_build_dir_artifacts(self, package: str) -> int:
+        """Remove old package files from a package's build directory beyond retention limit.
+
+        Honours the same keep_versions retention as the repository, so build
+        directories do not accumulate unbounded numbers of built packages.
+
+        Args:
+            package: Package name
+
+        Returns:
+            Number of package files removed
+        """
+        keep_versions = self.config.retention.keep_versions
+        pkg_dir = self.config.repository.build_dir / package
+
+        if not pkg_dir.is_dir():
+            return 0
+
+        files = list(pkg_dir.glob(f"{package}-*.pkg.tar.*"))
+        files = [f for f in files if not f.name.endswith(".sig")]
+        files = [f for f in files if self._parse_pkg_filename(f.name)[0] == package]
+
+        if len(files) <= keep_versions:
+            return 0
+
+        # Sort by modification time, oldest first
+        files.sort(key=lambda f: f.stat().st_mtime)
+
+        # Remove oldest files exceeding retention
+        to_remove = files[:-keep_versions] if keep_versions > 0 else files
+        removed = 0
+
+        for f in to_remove:
+            f.unlink()
+            # Also remove signature
+            sig = f.with_suffix(f.suffix + ".sig")
+            if sig.exists():
+                sig.unlink()
+            removed += 1
+
+        if removed:
+            logger.info(f"Cleaned up {removed} old build artifact(s) of {package}")
+
+        return removed
+
     def _cleanup_build_dir(self) -> int:
         """Remove old package directories from build dir exceeding the limit.
 
@@ -373,9 +419,18 @@ class RepoManager:
         packages = self.list_packages()
         unique_names = set(p.name for p in packages)
 
+        # Also include packages that have artifacts in the build dir
+        build_dir = self.config.repository.build_dir
+        if build_dir.exists():
+            unique_names.update(
+                d.name for d in build_dir.iterdir()
+                if d.is_dir() and not d.name.startswith(".") and d.name != "downloads"
+            )
+
         total_removed = 0
         for name in unique_names:
             total_removed += self._remove_old_packages(name)
+            total_removed += self._cleanup_build_dir_artifacts(name)
 
         total_removed += self._cleanup_build_dir()
 

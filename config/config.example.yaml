@@ -41,7 +41,7 @@ signing:
   key: ""
 
 retention:
-  # Number of old package versions to keep
+  # Number of old package versions to keep (in the repo and each package's build dir)
   keep_versions: 3
   # Automatically clean old versions after build
   cleanup_on_build: true
