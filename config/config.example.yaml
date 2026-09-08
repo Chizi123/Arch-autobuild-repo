@@ -69,6 +69,10 @@ notifications:
     use_tls: false
     username: ""
     password: ""
+    # Warn in notifications when free space on the repo filesystem drops
+    # below this many GiB (0 = disabled). Also triggers an email even when
+    # there are no build failures.
+    disk_space_threshold_gb: 5
   
   # Webhook notifications (Discord, Slack, ntfy, etc.)
   # Uncomment and configure as needed

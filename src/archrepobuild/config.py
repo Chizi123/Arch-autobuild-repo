@@ -57,6 +57,11 @@ class EmailConfig(BaseModel):
     use_tls: bool = Field(default=False, description="Use TLS for SMTP")
     username: str = Field(default="", description="SMTP username")
     password: str = Field(default="", description="SMTP password")
+    disk_space_threshold_gb: float = Field(
+        default=0,
+        ge=0,
+        description="Warn in notifications when free space on the repo filesystem drops below this (GiB, 0 = disabled)",
+    )
 
 
 class WebhookConfig(BaseModel):

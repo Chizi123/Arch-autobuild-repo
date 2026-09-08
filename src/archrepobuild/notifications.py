@@ -1,6 +1,7 @@
 """Notification system with email and extensible webhook support."""
 
 import asyncio
+import shutil
 import smtplib
 import socket
 import ssl
@@ -9,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -18,6 +20,42 @@ from archrepobuild.config import Config, EmailConfig, WebhookConfig
 from archrepobuild.logging import get_logger
 
 logger = get_logger("notifications")
+
+_GIB = 1024 ** 3
+
+
+def _disk_space_warning(config: Config) -> str | None:
+    """Return a low disk space warning for the repo filesystem, if needed.
+
+    Args:
+        config: Application config
+
+    Returns:
+        Warning message or None if free space is above the threshold
+    """
+    threshold_gib = config.notifications.email.disk_space_threshold_gb
+    if not threshold_gib or threshold_gib <= 0:
+        return None
+
+    path = config.repository.path
+    while not path.exists() and path != path.parent:
+        path = path.parent
+
+    try:
+        usage = shutil.disk_usage(str(path))
+    except OSError as exc:
+        logger.warning(f"Could not check disk space for {path}: {exc}")
+        return None
+
+    free_gib = usage.free / _GIB
+    if free_gib >= threshold_gib:
+        return None
+
+    used_pct = (100.0 * usage.used / usage.total) if usage.total else 0.0
+    return (
+        f"WARNING: Low disk space - {free_gib:.1f} GiB free "
+        f"of {usage.total / _GIB:.1f} GiB ({used_pct:.0f}% used) on {path}"
+    )
 
 
 @dataclass
@@ -74,12 +112,13 @@ class EmailBackend(NotificationBackend):
         """
         self.config = email_config
 
-    def _format_message(self, summary: BuildSummary, repo_name: str) -> str:
+    def _format_message(self, summary: BuildSummary, repo_name: str, disk_warning: str | None = None) -> str:
         """Format email message body.
 
         Args:
             summary: Build summary
             repo_name: Repository name
+            disk_warning: Low disk space warning, if any
 
         Returns:
             Formatted message string
@@ -96,6 +135,9 @@ class EmailBackend(NotificationBackend):
             f"  Skipped: {summary.skipped}",
             f"Total duration: {summary.duration:.1f}s",
         ]
+
+        if disk_warning:
+            lines.extend(["", disk_warning])
 
         if summary.failed_packages:
             lines.extend([
@@ -116,8 +158,10 @@ class EmailBackend(NotificationBackend):
             logger.warning("Email notification enabled but no recipient configured")
             return False
 
+        disk_warning = _disk_space_warning(config)
+
         # Only send on failures
-        if (not self.config.email_everytime) and summary.failed == 0:
+        if (not self.config.email_everytime) and summary.failed == 0 and not disk_warning:
             logger.debug("No failures, skipping email notification")
             return True
 
@@ -127,8 +171,11 @@ class EmailBackend(NotificationBackend):
             msg["To"] = self.config.to
             msg["Subject"] = f"Build Errors - {config.repository.name}"
 
-            body = self._format_message(summary, config.repository.name)
+            body = self._format_message(summary, config.repository.name, disk_warning)
             msg.attach(MIMEText(body, "plain"))
+
+            if disk_warning:
+                logger.warning(disk_warning)
 
             # Send email
             loop = asyncio.get_event_loop()
