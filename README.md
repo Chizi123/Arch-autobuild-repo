@@ -19,8 +19,8 @@ A modern, sustainable AUR package building and repository management tool for Ar
 ### From Source
 ```bash
 # Clone the repository
-git clone https://github.com/joelgrun/archrepobuild
-cd archrepobuild
+git clone https://github.com/Chizi123/Arch-autobuild-repo.git
+cd Arch-autobuild-repo
 
 # Set up virtual environment and install
 python -m venv .venv
@@ -39,7 +39,7 @@ To create a standalone executable that doesn't require Python:
 ```bash
 python scripts/build_binary.py
 ```
-The binary will be available at `dist/archrepobuild-bin`.
+The binary will be available at `dist/archrepobuild`.
 
 ## Quick Start
 
@@ -99,6 +99,8 @@ building:
   parallel: true
   max_workers: 4
   retry_attempts: 3
+  # Abort build-all below this much free space on the repo filesystem (GiB, 0 = disabled)
+  min_free_space_gb: 2
 
 retention:
   keep_versions: 3
@@ -109,6 +111,8 @@ notifications:
   email:
     enabled: true
     to: "admin@example.com"
+    # Warn (and email) below this much free space on the repo filesystem (GiB, 0 = disabled)
+    disk_space_threshold_gb: 5
 ```
 
 > **Note:** Build directories are never removed automatically — the `cleanup` command only prunes old repo versions, old build artifacts, and (optionally) stale source archives. To delete a package's build directory, use `archrepobuild remove <package>`.
