@@ -3,9 +3,11 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
+from types import SimpleNamespace
 
 from archrepobuild.builder import Builder
 from archrepobuild.config import Config, RepositoryConfig, BuildingConfig, SigningConfig
+from archrepobuild.disk import GIB
 
 
 @pytest.fixture
@@ -220,3 +222,82 @@ class TestBuilderBuildAllReboot:
 
         mock_run.assert_any_call(["sudo", "reboot"], check=False)
         mock_exit.assert_called_once_with(0)
+
+
+class TestBuilderAbortLowDiskSpace:
+    """Tests for the min_free_space_gb abort logic in Builder.build_all."""
+
+    def _usage(self, free_gib):
+        total = 50 * GIB
+        return SimpleNamespace(
+            total=total,
+            free=free_gib * GIB,
+            used=total - free_gib * GIB,
+        )
+
+    @pytest.mark.asyncio
+    @patch("archrepobuild.builder.repo_disk_usage")
+    @patch("archrepobuild.builder.subprocess.run")
+    @patch("sys.exit")
+    async def test_aborts_when_free_space_below_threshold(
+        self, mock_exit, mock_run, mock_usage, mock_config, mock_aur_client
+    ):
+        mock_config.building.min_free_space_gb = 5
+        mock_usage.return_value = self._usage(1)
+        mock_exit.side_effect = SystemExit
+
+        builder = Builder(mock_config, mock_aur_client)
+
+        with pytest.raises(SystemExit):
+            await builder.build_all()
+
+        mock_exit.assert_called_once_with(1)
+        mock_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("archrepobuild.builder.repo_disk_usage")
+    @patch("sys.exit")
+    async def test_no_abort_when_enough_space(
+        self, mock_exit, mock_usage, mock_config, mock_aur_client
+    ):
+        mock_config.building.min_free_space_gb = 5
+        mock_usage.return_value = self._usage(10)
+
+        builder = Builder(mock_config, mock_aur_client)
+        with patch("pathlib.Path.iterdir", return_value=[]):
+            results = await builder.build_all()
+            assert results == []
+
+        mock_exit.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("archrepobuild.builder.repo_disk_usage")
+    @patch("sys.exit")
+    async def test_no_abort_when_disabled(
+        self, mock_exit, mock_usage, mock_config, mock_aur_client
+    ):
+        mock_config.building.min_free_space_gb = 0
+        mock_usage.return_value = self._usage(0.1)
+
+        builder = Builder(mock_config, mock_aur_client)
+        with patch("pathlib.Path.iterdir", return_value=[]):
+            results = await builder.build_all()
+            assert results == []
+
+        mock_exit.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("archrepobuild.builder.repo_disk_usage")
+    @patch("sys.exit")
+    async def test_no_abort_when_disk_check_fails(
+        self, mock_exit, mock_usage, mock_config, mock_aur_client
+    ):
+        mock_config.building.min_free_space_gb = 5
+        mock_usage.return_value = None
+
+        builder = Builder(mock_config, mock_aur_client)
+        with patch("pathlib.Path.iterdir", return_value=[]):
+            results = await builder.build_all()
+            assert results == []
+
+        mock_exit.assert_not_called()

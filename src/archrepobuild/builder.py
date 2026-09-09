@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 
 from archrepobuild.aur import AURClient
 from archrepobuild.config import Config, PackageOverride
+from archrepobuild.disk import GIB, repo_disk_usage
 from archrepobuild.logging import get_logger
 from archrepobuild.resolver import DependencyResolver
 
@@ -422,6 +423,17 @@ class Builder:
         Returns:
             List of build results
         """
+        min_free_gib = self.config.building.min_free_space_gb
+        if min_free_gib and min_free_gib > 0:
+            usage = repo_disk_usage(self.config)
+            if usage is not None and usage.free / GIB < min_free_gib:
+                logger.error(
+                    f"Aborting build: only {usage.free / GIB:.1f} GiB free of "
+                    f"{usage.total / GIB:.1f} GiB on {self.config.repository.path} "
+                    f"(min_free_space_gb = {min_free_gib:g} GiB)"
+                )
+                sys.exit(1)
+
         # Update system if configured
         if self.config.building.update_system:
             reboot_on_critical = self.config.building.reboot_on_critical_updates
@@ -471,7 +483,6 @@ class Builder:
                     )
                     # Trigger reboot and exit immediately to prevent any package builds
                     subprocess.run(["sudo", "reboot"], check=False)
-                    import sys
                     sys.exit(0)
 
         # Find all packages

@@ -65,7 +65,7 @@ def _diskusage(total, used, free):
 def test_disk_space_warning(mock_config, usage, threshold, expected):
     mock_config.notifications.email.disk_space_threshold_gb = threshold
     mock_config.repository.path.mkdir(parents=True)
-    with patch("archrepobuild.notifications.shutil.disk_usage", return_value=usage):
+    with patch("archrepobuild.disk.shutil.disk_usage", return_value=usage):
         warning = _disk_space_warning(mock_config)
 
     if expected is None:
@@ -80,7 +80,7 @@ def test_disk_space_warning_uses_repo_path(mock_config):
     mock_config.notifications.email.disk_space_threshold_gb = 10
     mock_config.repository.path.mkdir(parents=True)
     with patch(
-        "archrepobuild.notifications.shutil.disk_usage",
+        "archrepobuild.disk.shutil.disk_usage",
         return_value=_diskusage(50 * _GIB, 40 * _GIB, 10 * _GIB),
     ) as mock_usage:
         _disk_space_warning(mock_config)
@@ -138,7 +138,7 @@ def test_send_sent_when_low_disk_even_without_failures(mock_config):
         timestamp=datetime.now(),
     )
     with patch(
-        "archrepobuild.notifications.shutil.disk_usage",
+        "archrepobuild.disk.shutil.disk_usage",
         return_value=_diskusage(50 * _GIB, 49 * _GIB, 1 * _GIB),
     ):
         with patch.object(backend, "_send_email") as mock_send:

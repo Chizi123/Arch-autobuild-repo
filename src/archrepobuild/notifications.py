@@ -1,7 +1,6 @@
 """Notification system with email and extensible webhook support."""
 
 import asyncio
-import shutil
 import smtplib
 import socket
 import ssl
@@ -17,11 +16,10 @@ import aiohttp
 
 from archrepobuild.builder import BuildResult, BuildStatus
 from archrepobuild.config import Config, EmailConfig, WebhookConfig
+from archrepobuild.disk import GIB, repo_disk_usage, resolved_repo_path
 from archrepobuild.logging import get_logger
 
 logger = get_logger("notifications")
-
-_GIB = 1024 ** 3
 
 
 def _disk_space_warning(config: Config) -> str | None:
@@ -37,24 +35,19 @@ def _disk_space_warning(config: Config) -> str | None:
     if not threshold_gib or threshold_gib <= 0:
         return None
 
-    path = config.repository.path
-    while not path.exists() and path != path.parent:
-        path = path.parent
-
-    try:
-        usage = shutil.disk_usage(str(path))
-    except OSError as exc:
-        logger.warning(f"Could not check disk space for {path}: {exc}")
+    usage = repo_disk_usage(config)
+    if usage is None:
         return None
 
-    free_gib = usage.free / _GIB
+    free_gib = usage.free / GIB
     if free_gib >= threshold_gib:
         return None
 
     used_pct = (100.0 * usage.used / usage.total) if usage.total else 0.0
     return (
         f"WARNING: Low disk space - {free_gib:.1f} GiB free "
-        f"of {usage.total / _GIB:.1f} GiB ({used_pct:.0f}% used) on {path}"
+        f"of {usage.total / GIB:.1f} GiB ({used_pct:.0f}% used) on "
+        f"{resolved_repo_path(config)}"
     )
 
 

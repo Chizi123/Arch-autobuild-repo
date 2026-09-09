@@ -26,6 +26,11 @@ class BuildingConfig(BaseModel):
     clear_pacman_cache: bool = Field(default=False, description="Clear pacman package cache after system update")
     retry_attempts: int = Field(default=3, ge=1, le=10, description="Retry attempts on failure")
     retry_delay: int = Field(default=5, ge=1, description="Base delay between retries (seconds)")
+    min_free_space_gb: float = Field(
+        default=0,
+        ge=0,
+        description="Abort build-all when free space on the repo filesystem drops below this (GiB); 0 disables"
+    )
     reboot_on_critical_updates: bool = Field(default=False, description="Reboot system if critical packages are updated")
     critical_packages: list[str] = Field(
         default_factory=lambda: [

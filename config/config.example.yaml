@@ -24,6 +24,8 @@ building:
   clear_pacman_cache: false
   # Reboot system if critical packages are updated (requires update_system: true)
   reboot_on_critical_updates: false
+  # Abort build-all if free space on the repo filesystem drops below this (GiB); 0 disables
+  min_free_space_gb: 2
   # Packages whose update triggers a reboot (default list covers kernel, systemd, glibc, etc.)
   # critical_packages:
   #   - linux
