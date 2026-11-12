@@ -151,7 +151,6 @@ def _run_makepkg(
                 capture_output=True,
                 text=True,
                 env=env,
-                timeout=3600,  # 1 hour timeout
             )
             returncode = result.returncode
             error = result.stderr or result.stdout
@@ -171,8 +170,6 @@ def _run_makepkg(
 
         return True, "", artifacts
 
-    except subprocess.TimeoutExpired:
-        return False, "Build timed out after 1 hour", []
     except Exception as e:
         return False, str(e), []
 
